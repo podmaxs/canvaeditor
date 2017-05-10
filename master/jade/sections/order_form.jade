@@ -1,0 +1,111 @@
+h3
+	| Edicion de orden de trabajo
+	small Edite o cree una orden de trabajo
+.row
+	.col-xs-12.col-sm-12.col-md-12.col-lg-12
+		.panel.panel-default
+			.panel-heading
+				|Seleccione el nombre de la entidad
+			.panel-body
+				.row
+					.col-xs-9.col-sm-9.col-md-10.col-lg-10
+						.form-group
+							input.form-control(type="text", placeholder="Seleecione el cliente")
+					.col-xs-3.col-sm-3.col-md-2.col-lg-2.text-center
+						.btn.btn-default
+							.fa.fa-user-plus.mr-sm
+							| CREATE NEW
+				.row
+					.col-xs-12.col-sm-12.col-md-12.col-lg-12.text-center
+						.btn.btn-primary
+							h3.text-center.mv-none.pv-sm
+								small(style="color:#fff;") CONTINUAR CON LA ENTIDAD SELECCIONADA
+								div
+									.fa.fa-angle-down
+		.panel.panel-default
+			div.bg-info.panel-body
+				.row
+					.col-xs-4.col-sm-4.col-md-4.col-lg-4
+						h1
+							.text-thin Ficha de ordenes de trabajo
+							small Nro: 353454645645
+					.col-xs-8.col-sm-8.col-md-8.col-lg-8
+						h2.text-right
+							div.text-thin draweb
+							small
+								|Maximiliano Piccinini
+								.text-thin podmaxs@gmail.com
+						div.text-right
+							.btn.btn-primary.mr-sm
+								.fa.fa-trash.mr-sm
+								| DESCARTAR BORRADOR
+							.btn.btn-primary
+								.fa.fa-floppy-o.mr-sm
+								| GUARDAR
+							.btn.btn-default.ml-sm
+								.fa.fa-print.mr-sm
+								| GUARDAR E IMPRIMIR
+			.row
+				.col-xs-12.col-sm-12.col-md-12.col-lg-12
+					.table-responsive
+						table.table.table-hover
+							thead
+								tr
+									th.text-center
+										| Device
+									th.text-center
+										| Marca
+									th.text-center
+										| Modelo
+									th.text-center
+										| Serial
+									th.text-center
+										| Trabajo
+									th.text-center
+										| Notas
+									th.text-center
+										| Action
+							tbody
+								tr
+									td
+										.form-group
+											select.form-control
+												option(value="")
+													| SmartPhone
+												option(value="")
+													| Tablet
+												option(value="")
+													| Notebook
+												option(value="")
+													| Otro
+									td
+										.form-group
+											input.form-control(type="text")
+									td
+										.form-group
+											input.form-control(type="text")
+									td
+										.form-group
+											input.form-control(type="text")
+									td
+										.form-group
+											select.form-control
+												option(value="")
+													| Desbloqueo parcial
+												option(value="")
+													| Desbloqueo completo
+												option(value="")
+													| Servicio Tecnico
+												option(value="")
+													| Software
+												option(value="")
+													| Presupuestar
+									td
+										.form-group
+											textarea.form-control.no-resize
+									td(width="50px")
+										.btn.btn-primary
+											| ADD
+								tr
+									td.text-center.bg-white(colspan="100%")
+										h3.text-thin Listado de ordenes cargadas

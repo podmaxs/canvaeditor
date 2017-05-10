@@ -1,0 +1,28 @@
+<h3>
+   <!-- START Language list-->
+   <div class="pull-right">
+      <div ng-click="new()" class="btn btn-primary">
+         <div class="fa fa-user-plus mr-sm"></div>Add</div>
+   </div>
+   <!-- END Language list-->
+   Entidades
+   <small>Administracion de entidades</small>
+</h3>
+<div class="panel panel-default">
+   <table class="table table-hover">
+      <thead>
+         <tr>
+            <th ng-repeat="col in cols">{{col.title}}</th>
+            <th width="50px" class="text-center">Action</th>
+         </tr>
+      </thead>
+      <tbody>
+         <tr ng-repeat="ent in list">
+            <td ng-repeat="key in cols">{{ent[key.key].get()}}</td>
+            <td width="50px" class="text-center">
+               <div ng-click="edit(ent)" class="btn btn-primary">Edit</div>
+            </td>
+         </tr>
+      </tbody>
+   </table>
+</div>

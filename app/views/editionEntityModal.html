@@ -1,0 +1,32 @@
+<div class="modal-header bg-bripary">
+   <button ng-click="close()" type="button" data-dismiss="modal" aria-hidden="true" class="close">&times;</button>
+   <div class="modal-title">Edicion de entidad</div>
+</div>
+<div class="modal-body">
+   <div ng-repeat="it in keys" class="form-group">
+      <div ng-if="entity[it].type == 'text'">
+         <label>{{'Ingrese '+it+' de la entidad'}}</label>
+         <input type="text" placeholder="{{'Ingrese '+it+' de la entidad'}}" ng-model="entity[it].value" class="form-control" />
+         <label ng-if="entity[it].error &amp;&amp; entity.error" class="text-danger">{{entity[it].log}}</label>
+      </div>
+      <div ng-if="entity[it].type == 'filter'">
+         <label>{{'Ingrese '+it+' de la entidad'}}</label>
+         <input type="text" placeholder="{{'Ingrese '+it+' de la entidad'}}" ng-model="entity[it].value" class="form-control" />
+         <label ng-if="entity[it].error &amp;&amp; entity.error" class="text-danger">{{entity[it].log}}</label>
+      </div>
+      <div ng-if="entity[it].type == 'filter_selector'">
+         <label>{{'Ingrese '+it+' de la entidad'}}</label>
+         <input type="text" placeholder="{{'Ingrese '+it+' de la entidad'}}" ng-model="entity[it].value" uib-typeahead="address for address in entity[it].filter($viewValue)" typeahead-loading="loadingLocations"
+         typeahead-no-results="noResults" class="form-control" />
+         <label ng-if="entity[it].error &amp;&amp; entity.error" class="text-danger">{{entity[it].log}}</label><i ng-show="loadingLocations" class="fa fa-refresh"></i>
+         <div ng-show="noResults"><i class="fa fa-remove">No Results Found</i>
+         </div>
+      </div>
+   </div>
+   <div class="form-group">
+      <div class="text-right">
+         <div ng-click="save()" class="btn btn-primary">Save</div>
+         <div ng-click="close()" class="btn btn-default">Cancel</div>
+      </div>
+   </div>
+</div>

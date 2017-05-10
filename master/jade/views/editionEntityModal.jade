@@ -1,0 +1,32 @@
+.modal-header.bg-bripary
+	button(ng-click="close()",type="button",class="close",data-dismiss="modal",aria-hidden="true") &times;
+	.modal-title Edicion de entidad
+.modal-body
+	.form-group(ng-repeat="it in keys")
+		div(ng-if="entity[it].type == 'text'")
+			label
+				| {{'Ingrese '+it+' de la entidad'}}
+			input.form-control(type="text",placeholder="{{'Ingrese '+it+' de la entidad'}}",ng-model="entity[it].value")
+			label.text-danger(ng-if="entity[it].error && entity.error")
+				|{{entity[it].log}}
+		div(ng-if="entity[it].type == 'filter'")
+			label
+				| {{'Ingrese '+it+' de la entidad'}}
+			input.form-control(type="text",placeholder="{{'Ingrese '+it+' de la entidad'}}",ng-model="entity[it].value")
+			label.text-danger(ng-if="entity[it].error && entity.error")
+				| {{entity[it].log}}
+		div(ng-if="entity[it].type == 'filter_selector'")
+			label
+				| {{'Ingrese '+it+' de la entidad'}}
+			input.form-control(type="text",placeholder="{{'Ingrese '+it+' de la entidad'}}",ng-model="entity[it].value",uib-typeahead="address for address in entity[it].filter($viewValue)" typeahead-loading="loadingLocations" typeahead-no-results="noResults")
+			label.text-danger(ng-if="entity[it].error && entity.error")
+				|{{entity[it].log}}
+			i(ng-show="loadingLocations" class="fa fa-refresh")
+			div( ng-show="noResults")
+				i( class="fa fa-remove") No Results Found
+	.form-group
+		div.text-right
+			.btn.btn-primary(ng-click="save()")
+				| Save
+			.btn.btn-default(ng-click="close()")
+				| Cancel

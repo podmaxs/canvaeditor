@@ -1,0 +1,25 @@
+h3
+  // START Language list
+  .pull-right
+    .btn.btn-primary(ng-click="new()")
+      .fa.fa-user-plus.mr-sm
+      | Add
+  // END Language list
+
+  |Entidades
+  small Administracion de entidades
+.panel.panel-default
+  table.table.table-hover
+    thead
+      tr
+        th(ng-repeat="col in cols")
+          {{col.title}}
+        th.text-center(width="50px")
+          | Action
+    tbody
+      tr(ng-repeat="ent in list")
+        td(ng-repeat="key in cols")
+          {{ent[key.key].get()}}
+        td.text-center(width="50px")
+          .btn.btn-primary(ng-click="edit(ent)")
+            |Edit
