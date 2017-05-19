@@ -3,13 +3,16 @@
 </h3>
 <div class="row">
    <div class="col-xs-12 col-sm-12 col-md-12 col-lg-12">
-      <div class="panel panel-default">
+      <div ng-if="ficha.entidad.eid.value == ''" class="panel panel-default">
          <div class="panel-heading">Seleccione el nombre de la entidad</div>
          <div class="panel-body">
             <div class="row">
                <div class="col-xs-9 col-sm-9 col-md-10 col-lg-10">
                   <div class="form-group">
-                     <input type="text" placeholder="Seleecione el cliente" class="form-control" />
+                     <input type="text" placeholder="Seleccione una entidad" ng-model="ficha.entidad" uib-typeahead="address.nombre.value+' '+address.apellido.value for address in getEntitys($viewValue)" typeahead-loading="loadingLocations" typeahead-no-results="noResults"
+                     class="form-control" /><i ng-show="loadingLocations" class="fa fa-refresh"></i>
+                     <div ng-show="noResults"><i class="fa fa-remove">No Results Found</i>
+                     </div>
                   </div>
                </div>
                <div class="col-xs-3 col-sm-3 col-md-2 col-lg-2 text-center">
@@ -31,7 +34,7 @@
             </div>
          </div>
       </div>
-      <div class="panel panel-default">
+      <div ng-if="ficha.entidad.eid.value != ''" class="panel panel-default">
          <div class="bg-info panel-body">
             <div class="row">
                <div class="col-xs-4 col-sm-4 col-md-4 col-lg-4">

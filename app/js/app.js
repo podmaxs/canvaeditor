@@ -91,13 +91,13 @@
     'use strict';
 
     angular
-        .module('app.loadingbar', []);
+        .module('app.lazyload', []);
 })();
 (function() {
     'use strict';
 
     angular
-        .module('app.lazyload', []);
+        .module('app.loadingbar', []);
 })();
 (function() {
     'use strict';
@@ -533,18 +533,24 @@
 
 	angular.module('app.fac')
 	.factory('order', ['inputItem',function(inputItem){
-		return function(oid, marca, modelo, serial, trabajo, notas){
+		return function(oid, device, referencia, serial, trabajo, notas){
 			var self = this;
 			
-			this.oid      = new inputItem('oid', oid, 'text', undefined, false, undefined, true);
-			this.marca    = new inputItem('marca', marca, 'text', undefined, false, undefined, true);
-			this.modelo   = new inputItem('modelo', modelo, 'text', undefined, false, undefined, true);
-			this.serial   = new inputItem('serial', serial, 'text', undefined, false, undefined, true);
-			this.trabajo  = new inputItem('trabajo', trabajo, 'text', undefined, false, undefined, true);
-			this.notas    = new inputItem('notas', notas, 'text', undefined, false, undefined, true);
 
 
+			this.createOid = function (oid) {
+				if(typeof oid == typeof undefined)
+					d = 'Odraw'+new Date().getTime()+'ZtO';
+				return new inputItem('oid', oid, 'text', undefined, false, undefined, true);
+			}
 
+			//define propiedades
+			this.oid        = self.createOid(oid);
+			this.device     = new inputItem('device', device, 'text', undefined, false, undefined, true);
+			this.referencia = new inputItem('referencia', referencia, 'text', undefined, false, undefined, true);
+			this.serial     = new inputItem('serial', serial, 'text', undefined, false, undefined, true);
+			this.trabajo    = new inputItem('trabajo', trabajo, 'text', undefined, false, undefined, true);
+			this.notas      = new inputItem('notas', notas, 'text', undefined, false, undefined, true);
 		};
 	}])
 
@@ -720,50 +726,6 @@
     'use strict';
 
     angular
-        .module('app.loadingbar')
-        .config(loadingbarConfig)
-        ;
-    loadingbarConfig.$inject = ['cfpLoadingBarProvider'];
-    function loadingbarConfig(cfpLoadingBarProvider){
-      cfpLoadingBarProvider.includeBar = true;
-      cfpLoadingBarProvider.includeSpinner = false;
-      cfpLoadingBarProvider.latencyThreshold = 500;
-      cfpLoadingBarProvider.parentSelector = '.wrapper > section';
-    }
-})();
-(function() {
-    'use strict';
-
-    angular
-        .module('app.loadingbar')
-        .run(loadingbarRun)
-        ;
-    loadingbarRun.$inject = ['$rootScope', '$timeout', 'cfpLoadingBar'];
-    function loadingbarRun($rootScope, $timeout, cfpLoadingBar){
-
-      // Loading bar transition
-      // ----------------------------------- 
-      var thBar;
-      $rootScope.$on('$stateChangeStart', function() {
-          if($('.wrapper > section').length) // check if bar container exists
-            thBar = $timeout(function() {
-              cfpLoadingBar.start();
-            }, 0); // sets a latency Threshold
-      });
-      $rootScope.$on('$stateChangeSuccess', function(event) {
-          event.targetScope.$watch('$viewContentLoaded', function () {
-            $timeout.cancel(thBar);
-            cfpLoadingBar.complete();
-          });
-      });
-
-    }
-
-})();
-(function() {
-    'use strict';
-
-    angular
         .module('app.lazyload')
         .config(lazyloadConfig);
 
@@ -933,6 +895,50 @@
 
 })();
 
+(function() {
+    'use strict';
+
+    angular
+        .module('app.loadingbar')
+        .config(loadingbarConfig)
+        ;
+    loadingbarConfig.$inject = ['cfpLoadingBarProvider'];
+    function loadingbarConfig(cfpLoadingBarProvider){
+      cfpLoadingBarProvider.includeBar = true;
+      cfpLoadingBarProvider.includeSpinner = false;
+      cfpLoadingBarProvider.latencyThreshold = 500;
+      cfpLoadingBarProvider.parentSelector = '.wrapper > section';
+    }
+})();
+(function() {
+    'use strict';
+
+    angular
+        .module('app.loadingbar')
+        .run(loadingbarRun)
+        ;
+    loadingbarRun.$inject = ['$rootScope', '$timeout', 'cfpLoadingBar'];
+    function loadingbarRun($rootScope, $timeout, cfpLoadingBar){
+
+      // Loading bar transition
+      // ----------------------------------- 
+      var thBar;
+      $rootScope.$on('$stateChangeStart', function() {
+          if($('.wrapper > section').length) // check if bar container exists
+            thBar = $timeout(function() {
+              cfpLoadingBar.start();
+            }, 0); // sets a latency Threshold
+      });
+      $rootScope.$on('$stateChangeSuccess', function(event) {
+          event.targetScope.$watch('$viewContentLoaded', function () {
+            $timeout.cancel(thBar);
+            cfpLoadingBar.complete();
+          });
+      });
+
+    }
+
+})();
 /**=========================================================
  * Module: navbar-search.js
  * Navbar search toggler * Auto dismiss on ESC key
@@ -1525,8 +1531,25 @@
 	'use strict';
 
 	angular.module('app.sections')
-	.controller('orderFormCtrl', ['$scope','$state', function($scope,$state){
-			
+	.controller('orderFormCtrl', ['$scope','$state','itemFicha','$entidades', function($scope,$state,itemFicha,$entidades){
+		if($state.params.order_key == "0")
+			$scope.ficha = new itemFicha();
+		console.log($scope.ficha);
+		$entidades.get(function(entidades){
+			setTimeout(function(){
+				$scope.$apply(function(){
+					$scope.entidades = entidades;
+				});
+			},1);
+		});
+
+		$scope.getEntitys = function(value){
+			console.log(value,$scope.entidades);
+			return $scope.entidades.filter(function(it){
+				return it.nombre.value.indexOf(value) !=-1;
+			});
+		};
+
 	}]);
 
 })();

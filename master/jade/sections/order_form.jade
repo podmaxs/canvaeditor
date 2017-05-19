@@ -3,14 +3,17 @@ h3
 	small Edite o cree una orden de trabajo
 .row
 	.col-xs-12.col-sm-12.col-md-12.col-lg-12
-		.panel.panel-default
+		.panel.panel-default(ng-if="ficha.entidad.eid.value == ''")
 			.panel-heading
 				|Seleccione el nombre de la entidad
 			.panel-body
 				.row
 					.col-xs-9.col-sm-9.col-md-10.col-lg-10
 						.form-group
-							input.form-control(type="text", placeholder="Seleecione el cliente")
+							input.form-control(type="text",placeholder="Seleccione una entidad",ng-model="ficha.entidad",uib-typeahead="address.nombre.value+' '+address.apellido.value for address in getEntitys($viewValue)" typeahead-loading="loadingLocations" typeahead-no-results="noResults")
+							i(ng-show="loadingLocations" class="fa fa-refresh")
+							div( ng-show="noResults")
+								i( class="fa fa-remove") No Results Found
 					.col-xs-3.col-sm-3.col-md-2.col-lg-2.text-center
 						.btn.btn-default
 							.fa.fa-user-plus.mr-sm
@@ -22,7 +25,7 @@ h3
 								small(style="color:#fff;") CONTINUAR CON LA ENTIDAD SELECCIONADA
 								div
 									.fa.fa-angle-down
-		.panel.panel-default
+		.panel.panel-default(ng-if="ficha.entidad.eid.value != ''")
 			div.bg-info.panel-body
 				.row
 					.col-xs-4.col-sm-4.col-md-4.col-lg-4
