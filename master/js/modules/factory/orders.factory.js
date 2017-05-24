@@ -7,7 +7,7 @@
 			return function (fid, oid, reference, type, code, work, date, note, state){
 				var uid         = oAuth.getCurrent().uid;
 				
-				this.params     = ['fid', 'reference', 'code', 'work', 'notes', 'state'];
+				this.params     = ['fid','type', 'reference', 'code', 'work', 'notes', 'state'];
 				this.oid        = new inputItem('oid', oid, 'text', undefined, false, undefined, true);
 				this.fid        = new inputItem('fid', fid, 'text', undefined, false, undefined, true);
 				this.type       = new inputItem('type', type || 'otro', 'text', undefined, false, undefined, true);
@@ -23,8 +23,11 @@
 					this.notes.push({text:note,owner:uid,date: new Date().toString()});
 				};
 
-				if(note != undefined)
-					this.pushNote(note);
+				if(Array.isArray(note))
+					this.notes = note;
+				else
+					if(note != undefined)
+						this.pushNote(note);
 
 
 

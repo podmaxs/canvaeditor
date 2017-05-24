@@ -69,14 +69,26 @@
                            <th class="text-center">Notas</th>
                            <th class="text-center">Action</th>
                         </tr>
+                        <tr>
+                           <th colspan="100%">
+                              <order-form form-order="formOrder"></order-form>
+                           </th>
+                        </tr>
                      </thead>
                      <tbody>
-                        <tr>
-                           <td colspan="100%">
-                              <order-form form-order="formOrder"></order-form>
+                        <tr ng-repeat="order in ordersList">
+                           <td class="text-center">{{order.type.value}}</td>
+                           <td class="text-center">{{order.reference.value}}</td>
+                           <td class="text-center">{{order.code.value}}</td>
+                           <td class="text-center">{{order.work.value}}</td>
+                           <td class="text-center">{{order.notes[0].text}}</td>
+                           <td class="text-center">
+                              <div class="btn btn-xs btn-default">
+                                 <div class="fa fa-trash"></div>
+                              </div>
                            </td>
                         </tr>
-                        <tr>
+                        <tr ng-if="!ordersList[0]">
                            <td colspan="100%" class="text-center bg-white">
                               <h3 class="text-thin">Listado de ordenes cargadas</h3>
                            </td>

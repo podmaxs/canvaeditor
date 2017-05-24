@@ -7,13 +7,27 @@
 		$scope.entidadFilter = new entidad();
 		if($state.params.order_key == "0")
 			$scope.ficha = new ficha();
+		$scope.allOrders = [];
 		$scope.ordersList = [];
 
-		$orders.get(function(list){
+
+		$scope.$watch('allOrders',function(n){
+			if(n!= undefined){
+				$scope.filterOrderList(n);
+			}
+		},true);
+
+
+		$scope.filterOrderList = function(list){
 			$scope.ordersList = list.filter(function(it){
+				console.log(it.fid.value , $scope.ficha.fid.value,'filterOrderList')
 				return it.fid.value == $scope.ficha.fid.value;
 			});
 			console.log($scope.ordersList, 'ordersList');
+		};
+
+		$orders.get(function(list){
+			$scope.allOrders = list;
 		});
 
 
@@ -34,6 +48,8 @@
 					function(ficha){
 						$scope.ficha.fid.value = ficha.fid.value;
 						$scope.formOrder       = new order(ficha.fid.value);
+
+						$scope.filterOrderList($scope.allOrders);
 
 						console.log(ficha,'if added');
 					}

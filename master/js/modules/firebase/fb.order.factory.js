@@ -28,7 +28,7 @@
 					var list = [];
 					for(var id in orders){
 						var or = orders[id];
-						list.push(new order(id, or.fid, or.reference, or.code, or.work, or.note, or.state));
+						list.push(new order(or.fid, id, or.reference, or.type, or.code, or.work, or.date, or.notes, or.state));
 					}
 					return list;
 				}

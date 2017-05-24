@@ -97,6 +97,12 @@
     'use strict';
 
     angular
+        .module('app.navsearch', []);
+})();
+(function() {
+    'use strict';
+
+    angular
         .module('app.loadingbar', []);
 })();
 (function(){
@@ -112,16 +118,16 @@
     'use strict';
 
     angular
-        .module('app.navsearch', []);
+        .module('app.routes', [
+            'app.lazyload'
+        ]);
 })();
 (function() {
     'use strict';
 
     angular
-        .module('app.preloader', []);
+        .module('app.settings', []);
 })();
-
-
 (function(){
 
 	'use strict';
@@ -135,15 +141,7 @@
     'use strict';
 
     angular
-        .module('app.settings', []);
-})();
-(function() {
-    'use strict';
-
-    angular
-        .module('app.routes', [
-            'app.lazyload'
-        ]);
+        .module('app.sidebar', []);
 })();
 (function() {
     'use strict';
@@ -155,17 +153,19 @@
     'use strict';
 
     angular
-        .module('app.utils', [
-          'app.colors'
-          ]);
+        .module('app.preloader', []);
 })();
+
 
 (function() {
     'use strict';
 
     angular
-        .module('app.sidebar', []);
+        .module('app.utils', [
+          'app.colors'
+          ]);
 })();
+
 (function() {
     'use strict';
 
@@ -789,7 +789,7 @@
 			return function (fid, oid, reference, type, code, work, date, note, state){
 				var uid         = oAuth.getCurrent().uid;
 				
-				this.params     = ['fid', 'reference', 'code', 'work', 'notes', 'state'];
+				this.params     = ['fid','type', 'reference', 'code', 'work', 'notes', 'state'];
 				this.oid        = new inputItem('oid', oid, 'text', undefined, false, undefined, true);
 				this.fid        = new inputItem('fid', fid, 'text', undefined, false, undefined, true);
 				this.type       = new inputItem('type', type || 'otro', 'text', undefined, false, undefined, true);
@@ -805,8 +805,11 @@
 					this.notes.push({text:note,owner:uid,date: new Date().toString()});
 				};
 
-				if(note != undefined)
-					this.pushNote(note);
+				if(Array.isArray(note))
+					this.notes = note;
+				else
+					if(note != undefined)
+						this.pushNote(note);
 
 
 
@@ -976,7 +979,6 @@
 
 			this.getCurrent = function(){
 				var current = defaultAuth.currentUser;
-				console.log(current)
 				if(current != null && current.providerData[0])
 					return current.providerData[0];
 				return {};
@@ -1069,7 +1071,7 @@
 					var list = [];
 					for(var id in orders){
 						var or = orders[id];
-						list.push(new order(id, or.fid, or.reference, or.code, or.work, or.note, or.state));
+						list.push(new order(or.fid, id, or.reference, or.type, or.code, or.work, or.date, or.notes, or.state));
 					}
 					return list;
 				}
@@ -1272,6 +1274,115 @@
 
 })();
 
+/**=========================================================
+ * Module: navbar-search.js
+ * Navbar search toggler * Auto dismiss on ESC key
+ =========================================================*/
+
+(function() {
+    'use strict';
+
+    angular
+        .module('app.navsearch')
+        .directive('searchOpen', searchOpen)
+        .directive('searchDismiss', searchDismiss);
+
+    //
+    // directives definition
+    // 
+    
+    function searchOpen () {
+        var directive = {
+            controller: searchOpenController,
+            restrict: 'A'
+        };
+        return directive;
+
+    }
+
+    function searchDismiss () {
+        var directive = {
+            controller: searchDismissController,
+            restrict: 'A'
+        };
+        return directive;
+        
+    }
+
+    //
+    // Contrller definition
+    // 
+    
+    searchOpenController.$inject = ['$scope', '$element', 'NavSearch'];
+    function searchOpenController ($scope, $element, NavSearch) {
+      $element
+        .on('click', function (e) { e.stopPropagation(); })
+        .on('click', NavSearch.toggle);
+    }
+
+    searchDismissController.$inject = ['$scope', '$element', 'NavSearch'];
+    function searchDismissController ($scope, $element, NavSearch) {
+      
+      var inputSelector = '.navbar-form input[type="text"]';
+
+      $(inputSelector)
+        .on('click', function (e) { e.stopPropagation(); })
+        .on('keyup', function(e) {
+          if (e.keyCode === 27) // ESC
+            NavSearch.dismiss();
+        });
+        
+      // click anywhere closes the search
+      $(document).on('click', NavSearch.dismiss);
+      // dismissable options
+      $element
+        .on('click', function (e) { e.stopPropagation(); })
+        .on('click', NavSearch.dismiss);
+    }
+
+})();
+
+
+/**=========================================================
+ * Module: nav-search.js
+ * Services to share navbar search functions
+ =========================================================*/
+ 
+(function() {
+    'use strict';
+
+    angular
+        .module('app.navsearch')
+        .service('NavSearch', NavSearch);
+
+    function NavSearch() {
+        this.toggle = toggle;
+        this.dismiss = dismiss;
+
+        ////////////////
+
+        var navbarFormSelector = 'form.navbar-form';
+
+        function toggle() {
+          var navbarForm = $(navbarFormSelector);
+
+          navbarForm.toggleClass('open');
+          
+          var isOpen = navbarForm.hasClass('open');
+          
+          navbarForm.find('input')[isOpen ? 'focus' : 'blur']();
+        }
+
+        function dismiss() {
+          $(navbarFormSelector)
+            .removeClass('open') // Close control
+            .find('input[type="text"]').blur() // remove focus
+            .val('') // Empty input
+            ;
+        }        
+    }
+})();
+
 (function() {
     'use strict';
 
@@ -1396,480 +1507,6 @@
 		  };
 		}
 	}]);
-
-})();
-
-/**=========================================================
- * Module: navbar-search.js
- * Navbar search toggler * Auto dismiss on ESC key
- =========================================================*/
-
-(function() {
-    'use strict';
-
-    angular
-        .module('app.navsearch')
-        .directive('searchOpen', searchOpen)
-        .directive('searchDismiss', searchDismiss);
-
-    //
-    // directives definition
-    // 
-    
-    function searchOpen () {
-        var directive = {
-            controller: searchOpenController,
-            restrict: 'A'
-        };
-        return directive;
-
-    }
-
-    function searchDismiss () {
-        var directive = {
-            controller: searchDismissController,
-            restrict: 'A'
-        };
-        return directive;
-        
-    }
-
-    //
-    // Contrller definition
-    // 
-    
-    searchOpenController.$inject = ['$scope', '$element', 'NavSearch'];
-    function searchOpenController ($scope, $element, NavSearch) {
-      $element
-        .on('click', function (e) { e.stopPropagation(); })
-        .on('click', NavSearch.toggle);
-    }
-
-    searchDismissController.$inject = ['$scope', '$element', 'NavSearch'];
-    function searchDismissController ($scope, $element, NavSearch) {
-      
-      var inputSelector = '.navbar-form input[type="text"]';
-
-      $(inputSelector)
-        .on('click', function (e) { e.stopPropagation(); })
-        .on('keyup', function(e) {
-          if (e.keyCode === 27) // ESC
-            NavSearch.dismiss();
-        });
-        
-      // click anywhere closes the search
-      $(document).on('click', NavSearch.dismiss);
-      // dismissable options
-      $element
-        .on('click', function (e) { e.stopPropagation(); })
-        .on('click', NavSearch.dismiss);
-    }
-
-})();
-
-
-/**=========================================================
- * Module: nav-search.js
- * Services to share navbar search functions
- =========================================================*/
- 
-(function() {
-    'use strict';
-
-    angular
-        .module('app.navsearch')
-        .service('NavSearch', NavSearch);
-
-    function NavSearch() {
-        this.toggle = toggle;
-        this.dismiss = dismiss;
-
-        ////////////////
-
-        var navbarFormSelector = 'form.navbar-form';
-
-        function toggle() {
-          var navbarForm = $(navbarFormSelector);
-
-          navbarForm.toggleClass('open');
-          
-          var isOpen = navbarForm.hasClass('open');
-          
-          navbarForm.find('input')[isOpen ? 'focus' : 'blur']();
-        }
-
-        function dismiss() {
-          $(navbarFormSelector)
-            .removeClass('open') // Close control
-            .find('input[type="text"]').blur() // remove focus
-            .val('') // Empty input
-            ;
-        }        
-    }
-})();
-
-(function() {
-    'use strict';
-
-    angular
-        .module('app.preloader')
-        .directive('preloader', preloader);
-
-    preloader.$inject = ['$animate', '$timeout', '$q'];
-    function preloader ($animate, $timeout, $q) {
-
-        var directive = {
-            restrict: 'EAC',
-            template: 
-              '<div class="preloader-progress">' +
-                  '<div class="preloader-progress-bar" ' +
-                       'ng-style="{width: loadCounter + \'%\'}"></div>' +
-              '</div>'
-            ,
-            link: link
-        };
-        return directive;
-
-        ///////
-
-        function link(scope, el) {
-
-          scope.loadCounter = 0;
-
-          var counter  = 0,
-              timeout;
-
-          // disables scrollbar
-          angular.element('body').css('overflow', 'hidden');
-          // ensure class is present for styling
-          el.addClass('preloader');
-
-          appReady().then(endCounter);
-
-          timeout = $timeout(startCounter);
-
-          ///////
-
-          function startCounter() {
-
-            var remaining = 100 - counter;
-            counter = counter + (0.015 * Math.pow(1 - Math.sqrt(remaining), 2));
-
-            scope.loadCounter = parseInt(counter, 10);
-
-            timeout = $timeout(startCounter, 20);
-          }
-
-          function endCounter() {
-
-            $timeout.cancel(timeout);
-
-            scope.loadCounter = 100;
-
-            $timeout(function(){
-              // animate preloader hiding
-              $animate.addClass(el, 'preloader-hidden');
-              // retore scrollbar
-              angular.element('body').css('overflow', '');
-            }, 300);
-          }
-
-          function appReady() {
-            var deferred = $q.defer();
-            var viewsLoaded = 0;
-            // if this doesn't sync with the real app ready
-            // a custom event must be used instead
-            var off = scope.$on('$viewContentLoaded', function () {
-              viewsLoaded ++;
-              // we know there are at least two views to be loaded 
-              // before the app is ready (1-index.html 2-app*.html)
-              if ( viewsLoaded === 2) {
-                // with resolve this fires only once
-                $timeout(function(){
-                  deferred.resolve();
-                }, 3000);
-
-                off();
-              }
-
-            });
-
-            return deferred.promise;
-          }
-
-        } //link
-    }
-
-})();
-(function(){
-
-	'use strict';
-
-	angular.module('app.sections')
-	.controller('userSettingsCtrl', ['$scope','oAuth', function($scope,oAuth){
-		
-		$scope.logout = function(){
-			oAuth.signOut();
-			$scope.app.offsidebarOpen = !$scope.app.offsidebarOpen;
-		};
-
-		
-	}]);
-
-})();
-(function(){
-
-	'use strict';
-
-	angular.module('app.sections')
-	.controller('dashBoardCtrl', ['$uibModal','$scope', '$entidades', 'entidad', function($uibModal, $scope, $entidades, entidad){
-		
-	}]);
-
-})();
-
-(function(){
-
-	'use strict';
-
-	angular.module('app.sections')
-	.controller('editionEntityModalCtrl', ['entidad','$entidades','$scope','ent','$uibModalInstance', function(entidad,$entidades,$scope,ent,$uibModalInstance){
-		
-		$scope.entity  = new entidad(ent.eid.value, ent.referencia.value, ent.nombre.value, ent.apellido.value, ent.telefono.value, ent.direccion.value, ent.email.value);
-		$scope.keys    = angular.copy(ent.keys);
-
-		$scope.close = function(){
-			//console.log(angular.copy($scope.entity))
-			$uibModalInstance.close($scope.entity);
-		};
-
-		$scope.save = function(){
-			var promise;
-			setTimeout(function(){
-				$scope.$apply(function(){
-					var data    = $scope.entity.get();
-					if(!$scope.entity.error){
-						if($scope.entity.eid.get() === '')
-							promise = $entidades.push(data);
-						else
-							promise = $entidades.update($scope.entity.eid.get(),data);
-						promise
-						.then(
-							function(eid){
-								if($scope.entity.eid.get() === '')
-									$scope.entity.set('eid',eid);
-								$scope.close();
-							},
-							function(error){
-								console.log(error);
-							}
-						)
-					}else{
-						//console.log($scope.entity.error, $scope.entity);
-					}
-				});
-			},100);
-		}
-
-	}]);
-
-})();
-
-(function(){
-
-	'use strict';
-
-	angular.module('app.sections')
-	.controller('entityListCtrl', ['$uibModal','$scope', '$entidades', 'entidad', function($uibModal, $scope, $entidades, entidad){
-		$scope.list = [];
-		$scope.cols = [];
-
-		$entidades.get(function(list){
-			$scope.list = list;
-			if(Array.isArray($scope.list) && $scope.list[0] != undefined){
-				$scope.cols = $scope.list[0].get_headers();
-			}
-		});
-
-		$scope.new = function(){
-			$scope.oepnModal();
-		};
-
-		$scope.edit = function(ent){
-			$scope.oepnModal(ent);
-		};
-
-		$scope.oepnModal = function(ent){
-			ent = ent == undefined?new entidad():ent;
-			var modalInstance = $uibModal.open({
-				animation: true,
-				templateUrl: 'app/views/editionEntityModal.html',
-				controller: 'editionEntityModalCtrl',
-				backdrop: 'static',
-				resolve: {
-			     	ent: function () {
-			     		return ent;
-			     	}
-			    }
-			});
-		}
-	}])
-
-})();
-
-(function(){
-
-	'use strict';
-
-	angular.module('app.sections')
-	.controller('orderFormCtrl', ['$scope','order','$orders','ficha','$fichas','$uibModal','$state','$entidades','entidad', function($scope,order,$orders,ficha,$fichas,$uibModal,$state,$entidades,entidad){
-		$scope.entidadFilter = new entidad();
-		if($state.params.order_key == "0")
-			$scope.ficha = new ficha();
-		$scope.ordersList = [];
-
-		$orders.get(function(list){
-			$scope.ordersList = list.filter(function(it){
-				return it.fid.value == $scope.ficha.fid.value;
-			});
-			console.log($scope.ordersList, 'ordersList');
-		});
-
-
-		$entidades.get(function(entidades){
-			setTimeout(function(){
-				$scope.$apply(function(){
-					$scope.entidades = entidades;
-				});
-			},1);
-		});
-
-		$scope.selectEntity = function(){
-			if($scope.entidadFilter.eid.get() !== ''){
-				$scope.ficha.entidad = angular.copy($scope.entidadFilter);
-				var nf = new ficha($scope.ficha.entidad.eid.get());
-				$fichas.push(nf)
-				.then(
-					function(ficha){
-						$scope.ficha.fid.value = ficha.fid.value;
-						$scope.formOrder       = new order(ficha.fid.value);
-
-						console.log(ficha,'if added');
-					}
-				)
-			}else{
-				console.log('No se a seleccionado la entidad');
-			}
-		};
-
-		$scope.setSelection = function($item){
-			$scope.entidadFilter = $item;
-		};
-
-
-		$scope.getEntitys = function(value){
-			console.log(value,$scope.entidades);
-			return $scope.entidades.filter(function(it){
-				return it.nombre.value.indexOf(value) !=-1;
-			});
-		};
-
-
-		$scope.createEntity = function(ent){
-			ent = ent == undefined?new entidad():ent;
-			var modalInstance = $uibModal.open({
-				animation: true,
-				templateUrl: 'app/views/editionEntityModal.html',
-				controller:  'editionEntityModalCtrl',
-				backdrop:    'static',
-				resolve: {
-			     	ent: function () {
-			     		return ent;
-			     	}
-			    }
-			});
-
-			modalInstance.result
-			.then(
-				function(newEntity){
-					if(newEntity.eid != undefined && newEntity.eid.get() != ''){
-						console.log(newEntity,'if a new entity')
-						$scope.entidadFilter = newEntity;
-					}
-				}
-			);
-		}
-
-	}]);
-
-})();
-
-(function(){
-
-	'use strict';
-
-	angular.module('app.sections')
-	.controller('orderListCtrl', ['$scope', function($scope){
-		
-	}])
-
-})();
-
-(function() {
-    'use strict';
-
-    angular
-        .module('app.settings')
-        .run(settingsRun);
-
-    settingsRun.$inject = ['$rootScope', '$localStorage'];
-
-    function settingsRun($rootScope, $localStorage){
-
-      // Global Settings
-      // -----------------------------------
-      $rootScope.app = {
-        name: 'Angle',
-        description: 'Angular Bootstrap Admin Template',
-        year: ((new Date()).getFullYear()),
-        layout: {
-          isFixed: true,
-          isCollapsed: false,
-          isBoxed: false,
-          isRTL: false,
-          horizontal: false,
-          isFloat: false,
-          asideHover: false,
-          theme: null,
-          asideScrollbar: false
-        },
-        useFullLayout: false,
-        hiddenFooter: false,
-        offsidebarOpen: false,
-        asideToggled: false,
-        viewAnimation: 'ng-fadeInUp'
-      };
-
-      // Setup the layout mode
-      $rootScope.app.layout.horizontal = ( $rootScope.$stateParams.layout === 'app-h') ;
-
-      // Restore layout settings [*** UNCOMMENT TO ENABLE ***]
-      // if( angular.isDefined($localStorage.layout) )
-      //   $rootScope.app.layout = $localStorage.layout;
-      // else
-      //   $localStorage.layout = $rootScope.app.layout;
-      //
-      // $rootScope.$watch('app.layout', function () {
-      //   $localStorage.layout = $rootScope.app.layout;
-      // }, true);
-
-      // Close submenu when sidebar change from collapsed to normal
-      $rootScope.$watch('app.layout.isCollapsed', function(newValue) {
-        if( newValue === false )
-          $rootScope.$broadcast('closeSidebarMenu');
-      });
-
-    }
 
 })();
 
@@ -2066,6 +1703,649 @@
     'use strict';
 
     angular
+        .module('app.settings')
+        .run(settingsRun);
+
+    settingsRun.$inject = ['$rootScope', '$localStorage'];
+
+    function settingsRun($rootScope, $localStorage){
+
+      // Global Settings
+      // -----------------------------------
+      $rootScope.app = {
+        name: 'Angle',
+        description: 'Angular Bootstrap Admin Template',
+        year: ((new Date()).getFullYear()),
+        layout: {
+          isFixed: true,
+          isCollapsed: false,
+          isBoxed: false,
+          isRTL: false,
+          horizontal: false,
+          isFloat: false,
+          asideHover: false,
+          theme: null,
+          asideScrollbar: false
+        },
+        useFullLayout: false,
+        hiddenFooter: false,
+        offsidebarOpen: false,
+        asideToggled: false,
+        viewAnimation: 'ng-fadeInUp'
+      };
+
+      // Setup the layout mode
+      $rootScope.app.layout.horizontal = ( $rootScope.$stateParams.layout === 'app-h') ;
+
+      // Restore layout settings [*** UNCOMMENT TO ENABLE ***]
+      // if( angular.isDefined($localStorage.layout) )
+      //   $rootScope.app.layout = $localStorage.layout;
+      // else
+      //   $localStorage.layout = $rootScope.app.layout;
+      //
+      // $rootScope.$watch('app.layout', function () {
+      //   $localStorage.layout = $rootScope.app.layout;
+      // }, true);
+
+      // Close submenu when sidebar change from collapsed to normal
+      $rootScope.$watch('app.layout.isCollapsed', function(newValue) {
+        if( newValue === false )
+          $rootScope.$broadcast('closeSidebarMenu');
+      });
+
+    }
+
+})();
+
+(function(){
+
+	'use strict';
+
+	angular.module('app.sections')
+	.controller('userSettingsCtrl', ['$scope','oAuth', function($scope,oAuth){
+		
+		$scope.logout = function(){
+			oAuth.signOut();
+			$scope.app.offsidebarOpen = !$scope.app.offsidebarOpen;
+		};
+
+		
+	}]);
+
+})();
+(function(){
+
+	'use strict';
+
+	angular.module('app.sections')
+	.controller('dashBoardCtrl', ['$uibModal','$scope', '$entidades', 'entidad', function($uibModal, $scope, $entidades, entidad){
+		
+	}]);
+
+})();
+
+(function(){
+
+	'use strict';
+
+	angular.module('app.sections')
+	.controller('editionEntityModalCtrl', ['entidad','$entidades','$scope','ent','$uibModalInstance', function(entidad,$entidades,$scope,ent,$uibModalInstance){
+		
+		$scope.entity  = new entidad(ent.eid.value, ent.referencia.value, ent.nombre.value, ent.apellido.value, ent.telefono.value, ent.direccion.value, ent.email.value);
+		$scope.keys    = angular.copy(ent.keys);
+
+		$scope.close = function(){
+			//console.log(angular.copy($scope.entity))
+			$uibModalInstance.close($scope.entity);
+		};
+
+		$scope.save = function(){
+			var promise;
+			setTimeout(function(){
+				$scope.$apply(function(){
+					var data    = $scope.entity.get();
+					if(!$scope.entity.error){
+						if($scope.entity.eid.get() === '')
+							promise = $entidades.push(data);
+						else
+							promise = $entidades.update($scope.entity.eid.get(),data);
+						promise
+						.then(
+							function(eid){
+								if($scope.entity.eid.get() === '')
+									$scope.entity.set('eid',eid);
+								$scope.close();
+							},
+							function(error){
+								console.log(error);
+							}
+						)
+					}else{
+						//console.log($scope.entity.error, $scope.entity);
+					}
+				});
+			},100);
+		}
+
+	}]);
+
+})();
+
+(function(){
+
+	'use strict';
+
+	angular.module('app.sections')
+	.controller('entityListCtrl', ['$uibModal','$scope', '$entidades', 'entidad', function($uibModal, $scope, $entidades, entidad){
+		$scope.list = [];
+		$scope.cols = [];
+
+		$entidades.get(function(list){
+			$scope.list = list;
+			if(Array.isArray($scope.list) && $scope.list[0] != undefined){
+				$scope.cols = $scope.list[0].get_headers();
+			}
+		});
+
+		$scope.new = function(){
+			$scope.oepnModal();
+		};
+
+		$scope.edit = function(ent){
+			$scope.oepnModal(ent);
+		};
+
+		$scope.oepnModal = function(ent){
+			ent = ent == undefined?new entidad():ent;
+			var modalInstance = $uibModal.open({
+				animation: true,
+				templateUrl: 'app/views/editionEntityModal.html',
+				controller: 'editionEntityModalCtrl',
+				backdrop: 'static',
+				resolve: {
+			     	ent: function () {
+			     		return ent;
+			     	}
+			    }
+			});
+		}
+	}])
+
+})();
+
+(function(){
+
+	'use strict';
+
+	angular.module('app.sections')
+	.controller('orderFormCtrl', ['$scope','order','$orders','ficha','$fichas','$uibModal','$state','$entidades','entidad', function($scope,order,$orders,ficha,$fichas,$uibModal,$state,$entidades,entidad){
+		$scope.entidadFilter = new entidad();
+		if($state.params.order_key == "0")
+			$scope.ficha = new ficha();
+		$scope.allOrders = [];
+		$scope.ordersList = [];
+
+
+		$scope.$watch('allOrders',function(n){
+			if(n!= undefined){
+				$scope.filterOrderList(n);
+			}
+		},true);
+
+
+		$scope.filterOrderList = function(list){
+			$scope.ordersList = list.filter(function(it){
+				console.log(it.fid.value , $scope.ficha.fid.value,'filterOrderList')
+				return it.fid.value == $scope.ficha.fid.value;
+			});
+			console.log($scope.ordersList, 'ordersList');
+		};
+
+		$orders.get(function(list){
+			$scope.allOrders = list;
+		});
+
+
+		$entidades.get(function(entidades){
+			setTimeout(function(){
+				$scope.$apply(function(){
+					$scope.entidades = entidades;
+				});
+			},1);
+		});
+
+		$scope.selectEntity = function(){
+			if($scope.entidadFilter.eid.get() !== ''){
+				$scope.ficha.entidad = angular.copy($scope.entidadFilter);
+				var nf = new ficha($scope.ficha.entidad.eid.get());
+				$fichas.push(nf)
+				.then(
+					function(ficha){
+						$scope.ficha.fid.value = ficha.fid.value;
+						$scope.formOrder       = new order(ficha.fid.value);
+
+						$scope.filterOrderList($scope.allOrders);
+
+						console.log(ficha,'if added');
+					}
+				)
+			}else{
+				console.log('No se a seleccionado la entidad');
+			}
+		};
+
+		$scope.setSelection = function($item){
+			$scope.entidadFilter = $item;
+		};
+
+
+		$scope.getEntitys = function(value){
+			console.log(value,$scope.entidades);
+			return $scope.entidades.filter(function(it){
+				return it.nombre.value.indexOf(value) !=-1;
+			});
+		};
+
+
+		$scope.createEntity = function(ent){
+			ent = ent == undefined?new entidad():ent;
+			var modalInstance = $uibModal.open({
+				animation: true,
+				templateUrl: 'app/views/editionEntityModal.html',
+				controller:  'editionEntityModalCtrl',
+				backdrop:    'static',
+				resolve: {
+			     	ent: function () {
+			     		return ent;
+			     	}
+			    }
+			});
+
+			modalInstance.result
+			.then(
+				function(newEntity){
+					if(newEntity.eid != undefined && newEntity.eid.get() != ''){
+						console.log(newEntity,'if a new entity')
+						$scope.entidadFilter = newEntity;
+					}
+				}
+			);
+		}
+
+	}]);
+
+})();
+
+(function(){
+
+	'use strict';
+
+	angular.module('app.sections')
+	.controller('orderListCtrl', ['$scope', function($scope){
+		
+	}])
+
+})();
+
+/**=========================================================
+ * Module: sidebar-menu.js
+ * Handle sidebar collapsible elements
+ =========================================================*/
+
+(function() {
+    'use strict';
+
+    angular
+        .module('app.sidebar')
+        .controller('SidebarController', SidebarController);
+
+    SidebarController.$inject = ['$rootScope', '$scope', '$state', 'SidebarLoader', 'Utils'];
+    function SidebarController($rootScope, $scope, $state, SidebarLoader,  Utils) {
+
+        activate();
+
+        ////////////////
+
+        function activate() {
+          var collapseList = [];
+
+          // demo: when switch from collapse to hover, close all items
+          $rootScope.$watch('app.layout.asideHover', function(oldVal, newVal){
+            if ( newVal === false && oldVal === true) {
+              closeAllBut(-1);
+            }
+          });
+
+
+          // Load menu from json file
+          // ----------------------------------- 
+
+          SidebarLoader.getMenu(sidebarReady);
+          
+          function sidebarReady(items) {
+            $scope.menuItems = items;
+          }
+
+          // Handle sidebar and collapse items
+          // ----------------------------------
+          
+          $scope.getMenuItemPropClasses = function(item) {
+            return (item.heading ? 'nav-heading' : '') +
+                   (isActive(item) ? ' active' : '') ;
+          };
+
+          $scope.addCollapse = function($index, item) {
+            collapseList[$index] = $rootScope.app.layout.asideHover ? true : !isActive(item);
+          };
+
+          $scope.isCollapse = function($index) {
+            return (collapseList[$index]);
+          };
+
+          $scope.toggleCollapse = function($index, isParentItem) {
+
+            // collapsed sidebar doesn't toggle drodopwn
+            if( Utils.isSidebarCollapsed() || $rootScope.app.layout.asideHover ) return true;
+
+            // make sure the item index exists
+            if( angular.isDefined( collapseList[$index] ) ) {
+              if ( ! $scope.lastEventFromChild ) {
+                collapseList[$index] = !collapseList[$index];
+                closeAllBut($index);
+              }
+            }
+            else if ( isParentItem ) {
+              closeAllBut(-1);
+            }
+            
+            $scope.lastEventFromChild = isChild($index);
+
+            return true;
+          
+          };
+
+          // Controller helpers
+          // ----------------------------------- 
+
+            // Check item and children active state
+            function isActive(item) {
+
+              if(!item) return;
+
+              if( !item.sref || item.sref === '#') {
+                var foundActive = false;
+                angular.forEach(item.submenu, function(value) {
+                  if(isActive(value)) foundActive = true;
+                });
+                return foundActive;
+              }
+              else
+                return $state.is(item.sref) || $state.includes(item.sref);
+            }
+
+            function closeAllBut(index) {
+              index += '';
+              for(var i in collapseList) {
+                if(index < 0 || index.indexOf(i) < 0)
+                  collapseList[i] = true;
+              }
+            }
+
+            function isChild($index) {
+              /*jshint -W018*/
+              return (typeof $index === 'string') && !($index.indexOf('-') < 0);
+            }
+        
+        } // activate
+    }
+
+})();
+
+/**=========================================================
+ * Module: sidebar.js
+ * Wraps the sidebar and handles collapsed state
+ =========================================================*/
+
+(function() {
+    'use strict';
+
+    angular
+        .module('app.sidebar')
+        .directive('sidebar', sidebar);
+
+    sidebar.$inject = ['$rootScope', '$timeout', '$window', 'Utils'];
+    function sidebar ($rootScope, $timeout, $window, Utils) {
+        var $win = angular.element($window);
+        var directive = {
+            // bindToController: true,
+            // controller: Controller,
+            // controllerAs: 'vm',
+            link: link,
+            restrict: 'EA',
+            template: '<nav class="sidebar" ng-transclude></nav>',
+            transclude: true,
+            replace: true
+            // scope: {}
+        };
+        return directive;
+
+        function link(scope, element, attrs) {
+
+          var currentState = $rootScope.$state.current.name;
+          var $sidebar = element;
+
+          var eventName = Utils.isTouch() ? 'click' : 'mouseenter' ;
+          var subNav = $();
+
+          $sidebar.on( eventName, '.nav > li', function() {
+
+            if( Utils.isSidebarCollapsed() || $rootScope.app.layout.asideHover ) {
+
+              subNav.trigger('mouseleave');
+              subNav = toggleMenuItem( $(this), $sidebar);
+
+              // Used to detect click and touch events outside the sidebar          
+              sidebarAddBackdrop();
+
+            }
+
+          });
+
+          scope.$on('closeSidebarMenu', function() {
+            removeFloatingNav();
+          });
+
+          // Normalize state when resize to mobile
+          $win.on('resize', function() {
+            if( ! Utils.isMobile() )
+          	asideToggleOff();
+          });
+
+          // Adjustment on route changes
+          $rootScope.$on('$stateChangeStart', function(event, toState) {
+            currentState = toState.name;
+            // Hide sidebar automatically on mobile
+            asideToggleOff();
+
+            $rootScope.$broadcast('closeSidebarMenu');
+          });
+
+      	  // Autoclose when click outside the sidebar
+          if ( angular.isDefined(attrs.sidebarAnyclickClose) ) {
+            
+            var wrapper = $('.wrapper');
+            var sbclickEvent = 'click.sidebar';
+            
+            $rootScope.$watch('app.asideToggled', watchExternalClicks);
+
+          }
+
+          //////
+
+          function watchExternalClicks(newVal) {
+            // if sidebar becomes visible
+            if ( newVal === true ) {
+              $timeout(function(){ // render after current digest cycle
+                wrapper.on(sbclickEvent, function(e){
+                  // if not child of sidebar
+                  if( ! $(e.target).parents('.aside').length ) {
+                    asideToggleOff();
+                  }
+                });
+              });
+            }
+            else {
+              // dettach event
+              wrapper.off(sbclickEvent);
+            }
+          }
+
+          function asideToggleOff() {
+            $rootScope.app.asideToggled = false;
+            if(!scope.$$phase) scope.$apply(); // anti-pattern but sometimes necessary
+      	  }
+        }
+        
+        ///////
+
+        function sidebarAddBackdrop() {
+          var $backdrop = $('<div/>', { 'class': 'dropdown-backdrop'} );
+          $backdrop.insertAfter('.aside-inner').on('click mouseenter', function () {
+            removeFloatingNav();
+          });
+        }
+
+        // Open the collapse sidebar submenu items when on touch devices 
+        // - desktop only opens on hover
+        function toggleTouchItem($element){
+          $element
+            .siblings('li')
+            .removeClass('open')
+            .end()
+            .toggleClass('open');
+        }
+
+        // Handles hover to open items under collapsed menu
+        // ----------------------------------- 
+        function toggleMenuItem($listItem, $sidebar) {
+
+          removeFloatingNav();
+
+          var ul = $listItem.children('ul');
+          
+          if( !ul.length ) return $();
+          if( $listItem.hasClass('open') ) {
+            toggleTouchItem($listItem);
+            return $();
+          }
+
+          var $aside = $('.aside');
+          var $asideInner = $('.aside-inner'); // for top offset calculation
+          // float aside uses extra padding on aside
+          var mar = parseInt( $asideInner.css('padding-top'), 0) + parseInt( $aside.css('padding-top'), 0);
+          var subNav = ul.clone().appendTo( $aside );
+          
+          toggleTouchItem($listItem);
+
+          var itemTop = ($listItem.position().top + mar) - $sidebar.scrollTop();
+          var vwHeight = $win.height();
+
+          subNav
+            .addClass('nav-floating')
+            .css({
+              position: $rootScope.app.layout.isFixed ? 'fixed' : 'absolute',
+              top:      itemTop,
+              bottom:   (subNav.outerHeight(true) + itemTop > vwHeight) ? 0 : 'auto'
+            });
+
+          subNav.on('mouseleave', function() {
+            toggleTouchItem($listItem);
+            subNav.remove();
+          });
+
+          return subNav;
+        }
+
+        function removeFloatingNav() {
+          $('.dropdown-backdrop').remove();
+          $('.sidebar-subnav.nav-floating').remove();
+          $('.sidebar li.open').removeClass('open');
+        }
+    }
+
+
+})();
+
+
+(function() {
+    'use strict';
+
+    angular
+        .module('app.sidebar')
+        .service('SidebarLoader', SidebarLoader);
+
+    SidebarLoader.$inject = ['$http'];
+    function SidebarLoader($http) {
+        this.getMenu = getMenu;
+
+        ////////////////
+
+        function getMenu(onReady, onError) {
+          var menuJson = 'server/sidebar-menu.json',
+              menuURL  = menuJson + '?v=' + (new Date().getTime()); // jumps cache
+            
+          onError = onError || function() { alert('Failure loading menu'); };
+
+          $http
+            .get(menuURL)
+            .success(onReady)
+            .error(onError);
+        }
+    }
+})();
+(function() {
+    'use strict';
+
+    angular
+        .module('app.sidebar')
+        .controller('UserBlockController', UserBlockController);
+
+    UserBlockController.$inject = ['$rootScope', '$scope'];
+    function UserBlockController($rootScope, $scope) {
+
+        activate();
+
+        ////////////////
+
+        function activate() {
+          $rootScope.user = {
+            name:     'John',
+            job:      'ng-developer',
+            picture:  'app/img/user/02.jpg'
+          };
+
+          // Hides/show user avatar on sidebar
+          $rootScope.toggleUserBlock = function(){
+            $rootScope.$broadcast('toggleUserBlock');
+          };
+
+          $rootScope.userBlockVisible = true;
+
+          var detach = $rootScope.$on('toggleUserBlock', function(/*event, args*/) {
+
+            $rootScope.userBlockVisible = ! $rootScope.userBlockVisible;
+
+          });
+
+          $scope.$on('$destroy', detach);
+        }
+    }
+})();
+
+(function() {
+    'use strict';
+
+    angular
         .module('app.translate')
         .config(translateConfig)
         ;
@@ -2125,6 +2405,99 @@
       $rootScope.language.init();
 
     }
+})();
+(function() {
+    'use strict';
+
+    angular
+        .module('app.preloader')
+        .directive('preloader', preloader);
+
+    preloader.$inject = ['$animate', '$timeout', '$q'];
+    function preloader ($animate, $timeout, $q) {
+
+        var directive = {
+            restrict: 'EAC',
+            template: 
+              '<div class="preloader-progress">' +
+                  '<div class="preloader-progress-bar" ' +
+                       'ng-style="{width: loadCounter + \'%\'}"></div>' +
+              '</div>'
+            ,
+            link: link
+        };
+        return directive;
+
+        ///////
+
+        function link(scope, el) {
+
+          scope.loadCounter = 0;
+
+          var counter  = 0,
+              timeout;
+
+          // disables scrollbar
+          angular.element('body').css('overflow', 'hidden');
+          // ensure class is present for styling
+          el.addClass('preloader');
+
+          appReady().then(endCounter);
+
+          timeout = $timeout(startCounter);
+
+          ///////
+
+          function startCounter() {
+
+            var remaining = 100 - counter;
+            counter = counter + (0.015 * Math.pow(1 - Math.sqrt(remaining), 2));
+
+            scope.loadCounter = parseInt(counter, 10);
+
+            timeout = $timeout(startCounter, 20);
+          }
+
+          function endCounter() {
+
+            $timeout.cancel(timeout);
+
+            scope.loadCounter = 100;
+
+            $timeout(function(){
+              // animate preloader hiding
+              $animate.addClass(el, 'preloader-hidden');
+              // retore scrollbar
+              angular.element('body').css('overflow', '');
+            }, 300);
+          }
+
+          function appReady() {
+            var deferred = $q.defer();
+            var viewsLoaded = 0;
+            // if this doesn't sync with the real app ready
+            // a custom event must be used instead
+            var off = scope.$on('$viewContentLoaded', function () {
+              viewsLoaded ++;
+              // we know there are at least two views to be loaded 
+              // before the app is ready (1-index.html 2-app*.html)
+              if ( viewsLoaded === 2) {
+                // with resolve this fires only once
+                $timeout(function(){
+                  deferred.resolve();
+                }, 3000);
+
+                off();
+              }
+
+            });
+
+            return deferred.promise;
+          }
+
+        } //link
+    }
+
 })();
 /**=========================================================
  * Module: animate-enabled.js
@@ -2553,361 +2926,6 @@
           }
 
         };
-    }
-})();
-
-/**=========================================================
- * Module: sidebar-menu.js
- * Handle sidebar collapsible elements
- =========================================================*/
-
-(function() {
-    'use strict';
-
-    angular
-        .module('app.sidebar')
-        .controller('SidebarController', SidebarController);
-
-    SidebarController.$inject = ['$rootScope', '$scope', '$state', 'SidebarLoader', 'Utils'];
-    function SidebarController($rootScope, $scope, $state, SidebarLoader,  Utils) {
-
-        activate();
-
-        ////////////////
-
-        function activate() {
-          var collapseList = [];
-
-          // demo: when switch from collapse to hover, close all items
-          $rootScope.$watch('app.layout.asideHover', function(oldVal, newVal){
-            if ( newVal === false && oldVal === true) {
-              closeAllBut(-1);
-            }
-          });
-
-
-          // Load menu from json file
-          // ----------------------------------- 
-
-          SidebarLoader.getMenu(sidebarReady);
-          
-          function sidebarReady(items) {
-            $scope.menuItems = items;
-          }
-
-          // Handle sidebar and collapse items
-          // ----------------------------------
-          
-          $scope.getMenuItemPropClasses = function(item) {
-            return (item.heading ? 'nav-heading' : '') +
-                   (isActive(item) ? ' active' : '') ;
-          };
-
-          $scope.addCollapse = function($index, item) {
-            collapseList[$index] = $rootScope.app.layout.asideHover ? true : !isActive(item);
-          };
-
-          $scope.isCollapse = function($index) {
-            return (collapseList[$index]);
-          };
-
-          $scope.toggleCollapse = function($index, isParentItem) {
-
-            // collapsed sidebar doesn't toggle drodopwn
-            if( Utils.isSidebarCollapsed() || $rootScope.app.layout.asideHover ) return true;
-
-            // make sure the item index exists
-            if( angular.isDefined( collapseList[$index] ) ) {
-              if ( ! $scope.lastEventFromChild ) {
-                collapseList[$index] = !collapseList[$index];
-                closeAllBut($index);
-              }
-            }
-            else if ( isParentItem ) {
-              closeAllBut(-1);
-            }
-            
-            $scope.lastEventFromChild = isChild($index);
-
-            return true;
-          
-          };
-
-          // Controller helpers
-          // ----------------------------------- 
-
-            // Check item and children active state
-            function isActive(item) {
-
-              if(!item) return;
-
-              if( !item.sref || item.sref === '#') {
-                var foundActive = false;
-                angular.forEach(item.submenu, function(value) {
-                  if(isActive(value)) foundActive = true;
-                });
-                return foundActive;
-              }
-              else
-                return $state.is(item.sref) || $state.includes(item.sref);
-            }
-
-            function closeAllBut(index) {
-              index += '';
-              for(var i in collapseList) {
-                if(index < 0 || index.indexOf(i) < 0)
-                  collapseList[i] = true;
-              }
-            }
-
-            function isChild($index) {
-              /*jshint -W018*/
-              return (typeof $index === 'string') && !($index.indexOf('-') < 0);
-            }
-        
-        } // activate
-    }
-
-})();
-
-/**=========================================================
- * Module: sidebar.js
- * Wraps the sidebar and handles collapsed state
- =========================================================*/
-
-(function() {
-    'use strict';
-
-    angular
-        .module('app.sidebar')
-        .directive('sidebar', sidebar);
-
-    sidebar.$inject = ['$rootScope', '$timeout', '$window', 'Utils'];
-    function sidebar ($rootScope, $timeout, $window, Utils) {
-        var $win = angular.element($window);
-        var directive = {
-            // bindToController: true,
-            // controller: Controller,
-            // controllerAs: 'vm',
-            link: link,
-            restrict: 'EA',
-            template: '<nav class="sidebar" ng-transclude></nav>',
-            transclude: true,
-            replace: true
-            // scope: {}
-        };
-        return directive;
-
-        function link(scope, element, attrs) {
-
-          var currentState = $rootScope.$state.current.name;
-          var $sidebar = element;
-
-          var eventName = Utils.isTouch() ? 'click' : 'mouseenter' ;
-          var subNav = $();
-
-          $sidebar.on( eventName, '.nav > li', function() {
-
-            if( Utils.isSidebarCollapsed() || $rootScope.app.layout.asideHover ) {
-
-              subNav.trigger('mouseleave');
-              subNav = toggleMenuItem( $(this), $sidebar);
-
-              // Used to detect click and touch events outside the sidebar          
-              sidebarAddBackdrop();
-
-            }
-
-          });
-
-          scope.$on('closeSidebarMenu', function() {
-            removeFloatingNav();
-          });
-
-          // Normalize state when resize to mobile
-          $win.on('resize', function() {
-            if( ! Utils.isMobile() )
-          	asideToggleOff();
-          });
-
-          // Adjustment on route changes
-          $rootScope.$on('$stateChangeStart', function(event, toState) {
-            currentState = toState.name;
-            // Hide sidebar automatically on mobile
-            asideToggleOff();
-
-            $rootScope.$broadcast('closeSidebarMenu');
-          });
-
-      	  // Autoclose when click outside the sidebar
-          if ( angular.isDefined(attrs.sidebarAnyclickClose) ) {
-            
-            var wrapper = $('.wrapper');
-            var sbclickEvent = 'click.sidebar';
-            
-            $rootScope.$watch('app.asideToggled', watchExternalClicks);
-
-          }
-
-          //////
-
-          function watchExternalClicks(newVal) {
-            // if sidebar becomes visible
-            if ( newVal === true ) {
-              $timeout(function(){ // render after current digest cycle
-                wrapper.on(sbclickEvent, function(e){
-                  // if not child of sidebar
-                  if( ! $(e.target).parents('.aside').length ) {
-                    asideToggleOff();
-                  }
-                });
-              });
-            }
-            else {
-              // dettach event
-              wrapper.off(sbclickEvent);
-            }
-          }
-
-          function asideToggleOff() {
-            $rootScope.app.asideToggled = false;
-            if(!scope.$$phase) scope.$apply(); // anti-pattern but sometimes necessary
-      	  }
-        }
-        
-        ///////
-
-        function sidebarAddBackdrop() {
-          var $backdrop = $('<div/>', { 'class': 'dropdown-backdrop'} );
-          $backdrop.insertAfter('.aside-inner').on('click mouseenter', function () {
-            removeFloatingNav();
-          });
-        }
-
-        // Open the collapse sidebar submenu items when on touch devices 
-        // - desktop only opens on hover
-        function toggleTouchItem($element){
-          $element
-            .siblings('li')
-            .removeClass('open')
-            .end()
-            .toggleClass('open');
-        }
-
-        // Handles hover to open items under collapsed menu
-        // ----------------------------------- 
-        function toggleMenuItem($listItem, $sidebar) {
-
-          removeFloatingNav();
-
-          var ul = $listItem.children('ul');
-          
-          if( !ul.length ) return $();
-          if( $listItem.hasClass('open') ) {
-            toggleTouchItem($listItem);
-            return $();
-          }
-
-          var $aside = $('.aside');
-          var $asideInner = $('.aside-inner'); // for top offset calculation
-          // float aside uses extra padding on aside
-          var mar = parseInt( $asideInner.css('padding-top'), 0) + parseInt( $aside.css('padding-top'), 0);
-          var subNav = ul.clone().appendTo( $aside );
-          
-          toggleTouchItem($listItem);
-
-          var itemTop = ($listItem.position().top + mar) - $sidebar.scrollTop();
-          var vwHeight = $win.height();
-
-          subNav
-            .addClass('nav-floating')
-            .css({
-              position: $rootScope.app.layout.isFixed ? 'fixed' : 'absolute',
-              top:      itemTop,
-              bottom:   (subNav.outerHeight(true) + itemTop > vwHeight) ? 0 : 'auto'
-            });
-
-          subNav.on('mouseleave', function() {
-            toggleTouchItem($listItem);
-            subNav.remove();
-          });
-
-          return subNav;
-        }
-
-        function removeFloatingNav() {
-          $('.dropdown-backdrop').remove();
-          $('.sidebar-subnav.nav-floating').remove();
-          $('.sidebar li.open').removeClass('open');
-        }
-    }
-
-
-})();
-
-
-(function() {
-    'use strict';
-
-    angular
-        .module('app.sidebar')
-        .service('SidebarLoader', SidebarLoader);
-
-    SidebarLoader.$inject = ['$http'];
-    function SidebarLoader($http) {
-        this.getMenu = getMenu;
-
-        ////////////////
-
-        function getMenu(onReady, onError) {
-          var menuJson = 'server/sidebar-menu.json',
-              menuURL  = menuJson + '?v=' + (new Date().getTime()); // jumps cache
-            
-          onError = onError || function() { alert('Failure loading menu'); };
-
-          $http
-            .get(menuURL)
-            .success(onReady)
-            .error(onError);
-        }
-    }
-})();
-(function() {
-    'use strict';
-
-    angular
-        .module('app.sidebar')
-        .controller('UserBlockController', UserBlockController);
-
-    UserBlockController.$inject = ['$rootScope', '$scope'];
-    function UserBlockController($rootScope, $scope) {
-
-        activate();
-
-        ////////////////
-
-        function activate() {
-          $rootScope.user = {
-            name:     'John',
-            job:      'ng-developer',
-            picture:  'app/img/user/02.jpg'
-          };
-
-          // Hides/show user avatar on sidebar
-          $rootScope.toggleUserBlock = function(){
-            $rootScope.$broadcast('toggleUserBlock');
-          };
-
-          $rootScope.userBlockVisible = true;
-
-          var detach = $rootScope.$on('toggleUserBlock', function(/*event, args*/) {
-
-            $rootScope.userBlockVisible = ! $rootScope.userBlockVisible;
-
-          });
-
-          $scope.$on('$destroy', detach);
-        }
     }
 })();
 

@@ -23,7 +23,6 @@
 
 			this.getCurrent = function(){
 				var current = defaultAuth.currentUser;
-				console.log(current)
 				if(current != null && current.providerData[0])
 					return current.providerData[0];
 				return {};

@@ -62,10 +62,25 @@ h3
 										| Notas
 									th.text-center
 										| Action
-							tbody
 								tr
-									td(colspan="100%")
+									th(colspan="100%")
 										order-form(form-order="formOrder")
-								tr
+							tbody
+								tr(ng-repeat="order in ordersList")
+
+									td.text-center
+										| {{order.type.value}}
+									td.text-center
+										| {{order.reference.value}}
+									td.text-center
+										| {{order.code.value}}
+									td.text-center
+										| {{order.work.value}}
+									td.text-center
+										| {{order.notes[0].text}}
+									td.text-center
+										.btn.btn-xs.btn-default
+											.fa.fa-trash
+								tr(ng-if="!ordersList[0]")
 									td.text-center.bg-white(colspan="100%")
 										h3.text-thin Listado de ordenes cargadas
