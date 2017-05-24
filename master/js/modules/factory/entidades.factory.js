@@ -70,6 +70,7 @@
 					return head;
 				};
 
+
 				this.filterAddress = function(val){
 					return $http.get('//maps.googleapis.com/maps/api/geocode/json', {
 						params: {

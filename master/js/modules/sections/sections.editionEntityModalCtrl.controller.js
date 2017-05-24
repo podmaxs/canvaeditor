@@ -9,7 +9,8 @@
 		$scope.keys    = angular.copy(ent.keys);
 
 		$scope.close = function(){
-			$uibModalInstance.dismiss('cancel');
+			//console.log(angular.copy($scope.entity))
+			$uibModalInstance.close($scope.entity);
 		};
 
 		$scope.save = function(){
@@ -24,7 +25,9 @@
 							promise = $entidades.update($scope.entity.eid.get(),data);
 						promise
 						.then(
-							function(){
+							function(eid){
+								if($scope.entity.eid.get() === '')
+									$scope.entity.set('eid',eid);
 								$scope.close();
 							},
 							function(error){

@@ -29,8 +29,8 @@
             'app.firebase',
             'app.sections',
             'app.pages',
+            'app.fac',
             'app.components',
-            'app.fac'
         ]);
 })();
 

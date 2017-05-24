@@ -21,6 +21,14 @@
 				defaultAuth.signOut();
 			};
 
+			this.getCurrent = function(){
+				var current = defaultAuth.currentUser;
+				console.log(current)
+				if(current != null && current.providerData[0])
+					return current.providerData[0];
+				return {};
+			};
+
 			this.login = function(email, password){
 				return $q(function(resolve, reject){
 					firebase.auth().signInWithEmailAndPassword(email, password)

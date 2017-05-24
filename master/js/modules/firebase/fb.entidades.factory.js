@@ -8,7 +8,7 @@
 			var self = this;
 			var db   = firebase.database().ref();
 			var event = {};
-				
+
 			this.get = function(c, e){
 				db.child('entidades')
 				.on('value',
@@ -36,8 +36,10 @@
 					db.child('entidades')
 					.push(data_entity)
 					.then(
-						function(){
-							resolve();
+						function(data){
+							console.log(data, 'on push entity');
+							var eid = data.path.o[1] || 0;
+							resolve(eid);
 						},
 						function(error){
 							console.log(error,'onPush');

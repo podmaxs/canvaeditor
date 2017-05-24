@@ -29,8 +29,8 @@
             'app.firebase',
             'app.sections',
             'app.pages',
+            'app.fac',
             'app.components',
-            'app.fac'
         ]);
 })();
 
@@ -45,7 +45,16 @@
 
 	'use strict';
 
-	angular.module('app.fac',[])
+	angular.module('app.components',[])
+	
+
+})();
+
+(function(){
+
+	'use strict';
+
+	angular.module('app.firebase',[])
 	
 
 })();
@@ -69,24 +78,6 @@
             'ui.utils'
         ]);
 })();
-(function(){
-
-	'use strict';
-
-	angular.module('app.firebase',[])
-	
-
-})();
-
-(function(){
-
-	'use strict';
-
-	angular.module('app.components',[])
-	
-
-})();
-
 (function() {
     'use strict';
 
@@ -99,6 +90,21 @@
     angular
         .module('app.navsearch', []);
 })();
+(function() {
+    'use strict';
+
+    angular
+        .module('app.loadingbar', []);
+})();
+(function(){
+
+	'use strict';
+
+	angular.module('app.fac',[])
+	
+
+})();
+
 (function(){
 
 	'use strict';
@@ -108,12 +114,6 @@
 
 })();
 
-(function() {
-    'use strict';
-
-    angular
-        .module('app.loadingbar', []);
-})();
 (function() {
     'use strict';
 
@@ -134,23 +134,8 @@
     'use strict';
 
     angular
-        .module('app.settings', []);
-})();
-(function() {
-    'use strict';
-
-    angular
         .module('app.translate', []);
 })();
-(function() {
-    'use strict';
-
-    angular
-        .module('app.utils', [
-          'app.colors'
-          ]);
-})();
-
 (function(){
 
 	'use strict';
@@ -160,6 +145,21 @@
 
 })();
 
+(function() {
+    'use strict';
+
+    angular
+        .module('app.utils', [
+          'app.colors'
+          ]);
+})();
+
+(function() {
+    'use strict';
+
+    angular
+        .module('app.settings', []);
+})();
 (function() {
     'use strict';
 
@@ -216,213 +216,446 @@
 
 })();
 
+	(function(){
+
+		'use strict';
+
+		angular.module('app.components')
+		.directive('entityFilter', ['$entidades','entidad',function($entidades,entidad){
+			
+			return {
+				// name: '',
+				// priority: 1,
+				// terminal: true,
+				scope: { value:'=', onSelect:'=' }, // {} = isolate, true = child, false/undefined = no change
+				// controller: function($scope, $element, $attrs, $transclude) {},
+				// require: 'ngModel', // Array = multiple requires, ? = optional, ^ = check parent elements
+				// restrict: 'EA', // E = Element, A = Attribute, C = Class, M = Comment
+				template: ''+
+					'<div class="form-group">'+
+						'<input type="text" placeholder="Seleccione una entidad" ng-model="ficha.dysplay_filter.value" uib-typeahead="address.dysplay_filter.value for address in getEntitys($viewValue)" typeahead-loading="loadingLocations" typeahead-no-results="noResults" typeahead-on-select="onSelectItem($item, $model, $label, $event)" class="form-control" />'+
+						'<i ng-show="loadingLocations" class="fa fa-refresh"></i>'+
+						'<div ng-show="noResults">'+
+							'<i class="fa fa-remove">No Results Found</i>'+
+                    	'</div>'+
+                  	'</div>'+
+				'',
+				// templateUrl: '',
+				// replace: true,
+				// transclude: true,
+				// compile: function(tElement, tAttrs, function transclude(function(scope, cloneLinkingFn){ return function linking(scope, elm, attrs){}})),
+				link: function($scope, iElm, iAttrs, controller) {
+					
+					$scope.ficha = new entidad();
+
+
+					$entidades.get(function(entidades){
+						setTimeout(function(){
+							$scope.$apply(function(){
+								$scope.entidades = entidades;
+							});
+						},1);
+					});
+
+					$scope.$watch('value',function(n){
+						if(n != undefined){
+							var ft = angular.copy(n);
+								ft.set('dysplay_filter',ft.nombre.value+' '+ft.apellido.value);
+							$scope.ficha = ft;
+							console.log(ft,'ficha')
+						}
+						//console.log(n,'refresh')
+					});
+
+					$scope.onSelectItem = function($item, $model, $label, $event){
+						//console.log($item, $model, $label, $event, 'onSelect');
+						if(typeof $scope.onSelect == 'function')
+							$scope.onSelect($item);
+					};
+
+					$scope.getEntitys = function(value){
+						//console.log(value,$scope.entidades);
+						return $scope.entidades.filter(function(it){
+							return it.nombre.like(value) || it.apellido.like(value) || it.referencia.like(value);
+						}).map(function(it){
+							it.set('dysplay_filter',it.referencia.value+' - '+it.nombre.value+' '+it.apellido.value+' - '+it.direccion.value);
+							return it;
+						});
+					};
+				}
+			};
+		}]);;
+		
+
+	})();
+	(function(){
+
+		'use strict';
+
+		angular.module('app.components')
+		.directive('orderForm', [function(){
+			
+			return {
+				// name: '',
+				// priority: 1,
+				// terminal: true,
+				// scope: {}, // {} = isolate, true = child, false/undefined = no change
+				// controller: function($scope, $element, $attrs, $transclude) {},
+				// require: 'ngModel', // Array = multiple requires, ? = optional, ^ = check parent elements
+				// restrict: 'A', // E = Element, A = Attribute, C = Class, M = Comment
+				   template: ''+
+				   	'<table class="table table-hover">'+
+				   	'<tbody>'+
+                        '<tr>'+
+                        	'<td>'+
+                        		'<div class="form-group">'+
+	                        		'<select ng-model="formOrder.type.value" class="form-control">'+
+	                                    '<option value="">SmartPhone</option>'+
+	                                    '<option value="">Tablet</option>'+
+	                                    '<option value="">Notebook</option>'+
+	                                    '<option value="">Otro</option>'+
+	                                '</select>'+
+                            	'</div>'+
+                        	'</td>'+
+                        	'<td>'+
+                        		'<div class="form-group">'+
+                        			'<input type="text" ng-model="formOrder.reference.value" uib-typeahead="references for references in getReferences($viewValue)" typeahead-loading="loadingReferences" typeahead-no-results="noResults" class="form-control">'+
+                        		'</div>'+
+                    		'</td>'+
+                    		'<td>'+
+                    			'<div class="form-group">'+
+                    				'<input type="text" ng-model="formOrder.code.value" class="form-control" />'+
+                              	'</div>'+
+                          	'</td>'+
+                           	'<td>'+
+                           		'<div class="form-group">'+
+                                	'<select ng-model="formOrder.work.value" class="form-control">'+
+                                    '<option value="">Desbloqueo parcial</option>'+
+                                    '<option value="">Desbloqueo completo</option>'+
+                                    '<option value="">Servicio Tecnico</option>'+
+                                    '<option value="">Software</option>'+
+                                    '<option value="">Presupuestar</option>'+
+                                 '</select>'+
+                              '</div>'+
+                           '</td>'+
+                           '<td>'+
+                              '<div class="form-group">'+
+                                 '<textarea class="form-control no-resize"></textarea>'+
+                              '</div>'+
+                           '</td>'+
+                           '<td width="50px">'+
+                              '<div ng-click="pushOrder()" class="btn btn-primary">ADD</div>'+
+                           '</td>'+
+                    	'</tr>'+
+                   '</tbody>'+
+                 '</table>'+
+			   	'',
+				// templateUrl: '',
+				// replace: true,
+				// transclude: true,
+				// compile: function(tElement, tAttrs, function transclude(function(scope, cloneLinkingFn){ return function linking(scope, elm, attrs){}})),
+				link: function($scope, iElm, iAttrs, controller) {
+					
+				},
+				controller:["$scope", "$orders", function($scope, $orders){
+					$scope.ordersListLoaded = [];
+
+					$orders.get(function(list){
+						$scope.ordersListLoaded = list;
+					});
+
+
+
+					$scope.getReferences = function(value){
+						return $scope.ordersListLoaded.filter(function(it){
+							return it.reference.like(value);
+						})
+						.map(function(it){
+							return it.reference.value;
+						});
+					}
+				}]
+			};
+		}]);;
+		
+
+	})();
 (function(){
 
 	'use strict';
 
-	angular.module('app.fac')
-	.factory('entidad', ['$http', 'inputItem',function($http, inputItem){
-		return function(eid, referencia, nombre, apellido, telefono, direccion, email){
+	angular.module('app.firebase')
+	.factory('$entidades', ['entidad','$q',function(entidad,$q){
+		return new function(){
 			var self = this;
+			var db   = firebase.database().ref();
+			var event = {};
+
+			this.get = function(c, e){
+				db.child('entidades')
+				.on('value',
+					function(snap){
+						var list = snap.val();
+						c(list == null?[]:self.encode_list_entidades(list));
+					},
+					function(err){
+						e(err);
+					}
+				);
+			};
+
+			this.encode_list_entidades = function(list){
+				var nlist = [];	
+				for(var id in list){
+					var ent = list[id];
+						nlist.push(new entidad(id,ent.referencia,ent.nombre,ent.apellido,ent.telefono,ent.direccion,ent.email));
+				}
+				return nlist;
+			}
+
+			this.push = function(data_entity){
+				return $q(function(resolve, reject){
+					db.child('entidades')
+					.push(data_entity)
+					.then(
+						function(data){
+							console.log(data, 'on push entity');
+							var eid = data.path.o[1] || 0;
+							resolve(eid);
+						},
+						function(error){
+							console.log(error,'onPush');
+							reject();
+						}
+					);
+				})
+			};
+
+			this.pop = function(id_entity){
+				return $q(function(resolve, reject){
+					db.child('entidades')
+					.child(id_entity)
+					.remove()
+					.then(
+						function(){
+							resolve();
+						},
+						function(error){
+							console.log(error,'onPop');
+							reject();
+						}
+					)
+				});
+			};
+
+			this.update = function(id_entity,data_entity){
+				return $q(function(resolve, reject){
+					db.child('entidades')
+					.child(id_entity)
+					.set(data_entity)
+					.then(
+						function(){
+							resolve();
+						},
+						function(error){
+							console.log(error,'onUpdate');
+							reject();
+						}
+					)
+				});
+			};
+		};
+	}]);
+
+})();
+	(function(){
+
+		'use strict';
+
+		angular.module('app.firebase')
+		.factory('$fichas', ['$q','$entidades', function($q,$entidades){
+			return new function(){
+				var self = this;
+
+				var db   = firebase.database().ref();
+				var event = {};
+
+
+
+				this.push = function(data_ficha){
+					return $q(function(resolve, reject){
+						db.child('fichas')
+						.push(data_ficha.get())
+						.then(
+							function(data){
+								console.log(data, 'on push ficha');
+								var fid = data.path.o[1] || 0;
+								data_ficha.fid.value = fid;
+								resolve(data_ficha);
+							},
+							function(error){
+								console.log(error,'onPush');
+								reject();
+							}
+						);
+					})
+				};
+
+
+
+			};
+		}]);
+		
+
+	})();
+(function(){
+
+	'use strict';
+
+	angular.module('app.firebase')
+	.factory('oAuth', ['$q',function($q){
+		return new function(){
+			var self           = this;
+			var defaultAuth    = firebase.auth();
+				this.AuthState = false;
+				this.events    = {
+					'onAuthStateChanged':function(state){}
+				};
 				
-				this.error = false;
-				this.keys  = [
-					'referencia',
-					'nombre',
-					'apellido',
-					'email',
-					'telefono',
-					'direccion'
-				];
 
-				// declaracion de propiedades
-				this.eid        = new inputItem('eid', eid, 'text', undefined, false, undefined, true);
-				this.referencia = new inputItem('referencia', referencia, 'text', undefined, false, 'Referencia', true);
-				this.nombre     = new inputItem('nombre', nombre, 'text', undefined, false, 'Nombre', true);
-				this.apellido   = new inputItem('apellido', apellido, 'text', undefined, false, 'Apellido', true);
-				this.telefono   = new inputItem('telefono', telefono, 'text', undefined, false, 'Telefono', true);
-				this.direccion  = new inputItem('direccion', direccion, 'filter_selector', function(val){ return self.filterAddress(val);}, false, 'Direccion');
-				this.email      = new inputItem('email', email, 'text', undefined, /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,6})+$/, 'E-mail', true);
-				// end
+			this.on = function(event,call){
+				self.events[event] = call;
+			};
 
-				this.get = function(){
-					var list = {};
-					self.error = false;
-					for(var p in self.keys){
-						var key = self.keys[p],
-						    val = self[key].get();
-						if(!self[key].error)
-							list[key] = val;
-						else
-							self.error = true;	
+			this.signOut = function(){
+				defaultAuth.signOut();
+			};
+
+			this.getCurrent = function(){
+				var current = defaultAuth.currentUser;
+				console.log(current)
+				if(current != null && current.providerData[0])
+					return current.providerData[0];
+				return {};
+			};
+
+			this.login = function(email, password){
+				return $q(function(resolve, reject){
+					firebase.auth().signInWithEmailAndPassword(email, password)
+					.then(
+						function(data){
+							resolve(data);
+						},
+						function(error){
+							if(error.message != undefined)
+								reject(error.message);
+							else
+								reject('Service no avariable');
+						}
+					);
+				});
+			};
+
+			this.register = function(email, password){
+				return $q(function(resolve,reject){
+					firebase.auth().createUserWithEmailAndPassword(email, password)
+					.then(
+						function(data){
+							resolve(data);
+						},
+						function(error){
+							if(error.message != undefined)
+								reject(error.message);
+							else
+								reject('Service no avariable');
+						}
+					);
+				})
+			}
+
+
+
+
+			defaultAuth.onAuthStateChanged(
+				function(state){
+					self.AuthState = state == null?false:state;
+					self.events.onAuthStateChanged(state == null?false:state);
+				},
+				function(error){
+					console.log(error);
+					self.events.onAuthStateChanged(false);
+				}
+			);
+
+
+			/*firebase.database().ref().child('usuarios').child('roles').on('value',function(snap){
+				console.log(snap.val());
+			});*/
+		};
+	}])
+
+})();
+	
+	(function(){
+
+		'use strict';
+
+		angular.module('app.firebase')
+		.factory('$orders', ['$q','order', function($q,order){
+			return new function(){
+				var self = this;
+
+				var db    = firebase.database().ref();
+				var event = {};
+
+
+				this.get = function(c, e){
+					db.child('orders')
+					.on('value',
+						function(snap){
+							var list = snap.val();
+							c(list == null?[]:self.encode_list_orders(list));
+						},
+						function(err){
+							e(err);
+						}
+					);
+				};
+
+				this.encode_list_orders = function(orders){
+					var list = [];
+					for(var id in orders){
+						var or = orders[id];
+						list.push(new order(id, or.fid, or.reference, or.code, or.work, or.note, or.state));
 					}
 					return list;
 				}
 
-				this.set = function(key,value){
-					var ex = self.keys.filter(function(k) {
-						return k == key;
-					});
-					if(ex[0] != undefined)
-						self.keys.push(key);
-					self[key] = new inputItem(key, value);
+
+				this.push = function(data_order){
+					return $q(function(resolve, reject){
+						db.child('orders')
+						.push(data_order.get())
+						.then(
+							function(data){
+								console.log(data, 'on push order');
+								var oid = data.path.o[1] || 0;
+								data_order.oid.value = oid;
+								resolve(data_order);
+							},
+							function(error){
+								console.log(error,'onPush');
+								reject();
+							}
+						);
+					})
 				};
 
-				this.get_headers = function(){
-					var headKeys =  [
-						'referencia',
-						'nombre',
-						'apellido',
-						'email',
-						'telefono'
-					],
-					head = [];
-					for(var h in headKeys){
-						if(self[headKeys[h]] != undefined){
-							head.push({
-								key:   self[headKeys[h]].name,
-								title: self[headKeys[h]].placeholder
-							});
-						}
-					}
-					return head;
-				};
-
-				this.filterAddress = function(val){
-					return $http.get('//maps.googleapis.com/maps/api/geocode/json', {
-						params: {
-							address: val,
-							sensor: false
-						}
-				    })
-				    .then(function(response){
-				    	return response.data.results.map(function(item){
-				    		return item.formatted_address;
-				    	});
-				    });
-				};
-		};
-	}])
-
-})();
-
-(function(){
-
-	'use strict';
-
-	angular.module('app.fac')
-	.factory('inputItem', [function(){
-		return function(name, value, type, filter, pattern, placeholder, required){
-			var self = this;
-			this.error       = false;
-			this.log         = '';
-
-			// sets atributes
-			this.name        = name != undefined?name:'text';
-			this.value       = value == undefined?'':value;
-			this.type        = type == undefined?'text':type;
-			this.pattern     = pattern == undefined?'':pattern;
-			this.placeholder = placeholder == undefined?'':placeholder;
-			this.required    = required == undefined?false:required;
-			this.filter      = filter;
-			// end
-
-			this.get = function(){
-				self.error = false;
-				self.error = !self.valid();
-				if(self.error && self.log == '')
-					self.log = self.required?'The '+self.name+' is invalid and is required':'The '+self.name+' is invalid';
-				else
-					self.log = '';
-				return self.value;
 			};
+		}]);
+		
 
-			this.valid = function(){
-				self.log = '';
-				if(typeof self.pattern == 'function')
-					return self.pattern(self.value);
-				if(typeof self.pattern == 'object')
-					return self.pattern.test(self.value);
-				return (self.required && self.value != '') || !self.required;
-			}
-
-		};
-	}]);
-})();
-
-(function(){
-
-	'use strict';
-
-	angular.module('app.fac')
-	.factory('itemDevice', [function(){
-		return function(){
-			
-		};
-	}])
-
-})();
-
-(function(){
-
-	'use strict';
-
-	angular.module('app.fac')
-	.factory('itemFicha', ['entidad',function(entidad){
-		return function(ent, orders){
-			var self = this;
-
-			this.entidad = typeof ent != typeof entidad?new entidad():ent;
-			this.nro     = new Date().getTime();
-			this.orders  = Array.isArray(orders)?orders:[];
-
-
-		};
-	}])
-
-})();
-(function(){
-
-	'use strict';
-
-	angular.module('app.fac')
-	.factory('itemModel', [function(){
-		return function(){
-			
-		};
-	}])
-
-})();
-
-(function(){
-
-	'use strict';
-
-	angular.module('app.fac')
-	.factory('order', ['inputItem',function(inputItem){
-		return function(oid, device, referencia, serial, trabajo, notas){
-			var self = this;
-			
-
-
-			this.createOid = function (oid) {
-				if(typeof oid == typeof undefined)
-					d = 'Odraw'+new Date().getTime()+'ZtO';
-				return new inputItem('oid', oid, 'text', undefined, false, undefined, true);
-			}
-
-			//define propiedades
-			this.oid        = self.createOid(oid);
-			this.device     = new inputItem('device', device, 'text', undefined, false, undefined, true);
-			this.referencia = new inputItem('referencia', referencia, 'text', undefined, false, undefined, true);
-			this.serial     = new inputItem('serial', serial, 'text', undefined, false, undefined, true);
-			this.trabajo    = new inputItem('trabajo', trabajo, 'text', undefined, false, undefined, true);
-			this.notas      = new inputItem('notas', notas, 'text', undefined, false, undefined, true);
-		};
-	}])
-
-})();
-
+	})();
 (function() {
     'use strict';
 
@@ -556,172 +789,6 @@
 })();
 
 
-(function(){
-
-	'use strict';
-
-	angular.module('app.firebase')
-	.factory('$entidades', ['entidad','$q',function(entidad,$q){
-		return new function(){
-			var self = this;
-			var db   = firebase.database().ref();
-			var event = {};
-				
-			this.get = function(c, e){
-				db.child('entidades')
-				.on('value',
-					function(snap){
-						var list = snap.val();
-						c(list == null?[]:self.encode_list_entidades(list));
-					},
-					function(err){
-						e(err);
-					}
-				);
-			};
-
-			this.encode_list_entidades = function(list){
-				var nlist = [];	
-				for(var id in list){
-					var ent = list[id];
-						nlist.push(new entidad(id,ent.referencia,ent.nombre,ent.apellido,ent.telefono,ent.direccion,ent.email));
-				}
-				return nlist;
-			}
-
-			this.push = function(data_entity){
-				return $q(function(resolve, reject){
-					db.child('entidades')
-					.push(data_entity)
-					.then(
-						function(){
-							resolve();
-						},
-						function(error){
-							console.log(error,'onPush');
-							reject();
-						}
-					);
-				})
-			};
-
-			this.pop = function(id_entity){
-				return $q(function(resolve, reject){
-					db.child('entidades')
-					.child(id_entity)
-					.remove()
-					.then(
-						function(){
-							resolve();
-						},
-						function(error){
-							console.log(error,'onPop');
-							reject();
-						}
-					)
-				});
-			};
-
-			this.update = function(id_entity,data_entity){
-				return $q(function(resolve, reject){
-					db.child('entidades')
-					.child(id_entity)
-					.set(data_entity)
-					.then(
-						function(){
-							resolve();
-						},
-						function(error){
-							console.log(error,'onUpdate');
-							reject();
-						}
-					)
-				});
-			};
-		};
-	}]);
-
-})();
-(function(){
-
-	'use strict';
-
-	angular.module('app.firebase')
-	.factory('oAuth', ['$q',function($q){
-		return new function(){
-			var self           = this;
-			var defaultAuth    = firebase.auth();
-				this.AuthState = false;
-				this.events    = {
-					'onAuthStateChanged':function(state){}
-				};
-				
-
-			this.on = function(event,call){
-				self.events[event] = call;
-			};
-
-			this.signOut = function(){
-				defaultAuth.signOut();
-			};
-
-			this.login = function(email, password){
-				return $q(function(resolve, reject){
-					firebase.auth().signInWithEmailAndPassword(email, password)
-					.then(
-						function(data){
-							resolve(data);
-						},
-						function(error){
-							if(error.message != undefined)
-								reject(error.message);
-							else
-								reject('Service no avariable');
-						}
-					);
-				});
-			};
-
-			this.register = function(email, password){
-				return $q(function(resolve,reject){
-					firebase.auth().createUserWithEmailAndPassword(email, password)
-					.then(
-						function(data){
-							resolve(data);
-						},
-						function(error){
-							if(error.message != undefined)
-								reject(error.message);
-							else
-								reject('Service no avariable');
-						}
-					);
-				})
-			}
-
-
-
-
-			defaultAuth.onAuthStateChanged(
-				function(state){
-					self.AuthState = state == null?false:state;
-					self.events.onAuthStateChanged(state == null?false:state);
-				},
-				function(error){
-					console.log(error);
-					self.events.onAuthStateChanged(false);
-				}
-			);
-
-
-			/*firebase.database().ref().child('usuarios').child('roles').on('value',function(snap){
-				console.log(snap.val());
-			});*/
-		};
-	}])
-
-})();
-	
 (function() {
     'use strict';
 
@@ -1004,6 +1071,349 @@
     }
 })();
 
+(function() {
+    'use strict';
+
+    angular
+        .module('app.loadingbar')
+        .config(loadingbarConfig)
+        ;
+    loadingbarConfig.$inject = ['cfpLoadingBarProvider'];
+    function loadingbarConfig(cfpLoadingBarProvider){
+      cfpLoadingBarProvider.includeBar = true;
+      cfpLoadingBarProvider.includeSpinner = false;
+      cfpLoadingBarProvider.latencyThreshold = 500;
+      cfpLoadingBarProvider.parentSelector = '.wrapper > section';
+    }
+})();
+(function() {
+    'use strict';
+
+    angular
+        .module('app.loadingbar')
+        .run(loadingbarRun)
+        ;
+    loadingbarRun.$inject = ['$rootScope', '$timeout', 'cfpLoadingBar'];
+    function loadingbarRun($rootScope, $timeout, cfpLoadingBar){
+
+      // Loading bar transition
+      // ----------------------------------- 
+      var thBar;
+      $rootScope.$on('$stateChangeStart', function() {
+          if($('.wrapper > section').length) // check if bar container exists
+            thBar = $timeout(function() {
+              cfpLoadingBar.start();
+            }, 0); // sets a latency Threshold
+      });
+      $rootScope.$on('$stateChangeSuccess', function(event) {
+          event.targetScope.$watch('$viewContentLoaded', function () {
+            $timeout.cancel(thBar);
+            cfpLoadingBar.complete();
+          });
+      });
+
+    }
+
+})();
+(function(){
+
+	'use strict';
+
+	angular.module('app.fac')
+	.factory('entidad', ['$http', 'inputItem',function($http, inputItem){
+		return function(eid, referencia, nombre, apellido, telefono, direccion, email){
+			var self = this;
+				
+				this.error = false;
+				this.keys  = [
+					'referencia',
+					'nombre',
+					'apellido',
+					'email',
+					'telefono',
+					'direccion'
+				];
+
+				// declaracion de propiedades
+				this.eid        = new inputItem('eid', eid, 'text', undefined, false, undefined, true);
+				this.referencia = new inputItem('referencia', referencia, 'text', undefined, false, 'Referencia', true);
+				this.nombre     = new inputItem('nombre', nombre, 'text', undefined, false, 'Nombre', true);
+				this.apellido   = new inputItem('apellido', apellido, 'text', undefined, false, 'Apellido', true);
+				this.telefono   = new inputItem('telefono', telefono, 'text', undefined, false, 'Telefono', true);
+				this.direccion  = new inputItem('direccion', direccion, 'filter_selector', function(val){ return self.filterAddress(val);}, false, 'Direccion');
+				this.email      = new inputItem('email', email, 'text', undefined, /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,6})+$/, 'E-mail', true);
+				// end
+
+				this.get = function(){
+					var list = {};
+					self.error = false;
+					for(var p in self.keys){
+						var key = self.keys[p],
+						    val = self[key].get();
+						if(!self[key].error)
+							list[key] = val;
+						else
+							self.error = true;	
+					}
+					return list;
+				}
+
+				this.set = function(key,value){
+					var ex = self.keys.filter(function(k) {
+						return k == key;
+					});
+					if(ex[0] != undefined)
+						self.keys.push(key);
+					self[key] = new inputItem(key, value);
+				};
+
+				this.get_headers = function(){
+					var headKeys =  [
+						'referencia',
+						'nombre',
+						'apellido',
+						'email',
+						'telefono'
+					],
+					head = [];
+					for(var h in headKeys){
+						if(self[headKeys[h]] != undefined){
+							head.push({
+								key:   self[headKeys[h]].name,
+								title: self[headKeys[h]].placeholder
+							});
+						}
+					}
+					return head;
+				};
+
+
+				this.filterAddress = function(val){
+					return $http.get('//maps.googleapis.com/maps/api/geocode/json', {
+						params: {
+							address: val,
+							sensor: false
+						}
+				    })
+				    .then(function(response){
+				    	return response.data.results.map(function(item){
+				    		return item.formatted_address;
+				    	});
+				    });
+				};
+		};
+	}])
+
+})();
+
+	(function(){
+
+		'use strict';
+
+		angular.module('app.fac')
+		.factory('ficha', ['inputItem','oAuth',function(inputItem,oAuth){
+			return function(eid, fid, nro, date, state){
+				var self = this;
+				var uid     = oAuth.getCurrent().uid;
+
+				this.params = ['nro', 'eid','owner', 'date', 'state'];
+				
+				this.fid    = new inputItem('fid', fid, 'text', undefined, false, undefined, true);
+				this.nro    = new inputItem('nro', nro || new Date().getTime(), 'number', undefined, false, undefined, true);
+				this.eid    = new inputItem('eid', eid, 'number', undefined, false, undefined, true);
+				this.date   = new inputItem('date', date || new Date().toString(), 'date', undefined, false, undefined, true);
+				this.state  = new inputItem('state', state || 'draft', 'text', undefined, false, undefined, true);;
+				this.owner  = new inputItem('owner', uid, 'text', undefined, false, undefined, true);
+				
+				this.get = function(){
+					var ficha = {};
+					for(var p in this.params){
+						var param = this.params[p];
+						ficha[param] = this[param].get();
+					}
+					return ficha;
+				};
+
+
+			};
+		}]);
+
+	})();
+(function(){
+
+	'use strict';
+
+	angular.module('app.fac')
+	.factory('inputItem', [function(){
+		return function(name, value, type, filter, pattern, placeholder, required){
+			var self = this;
+			this.error       = false;
+			this.log         = '';
+
+			// sets atributes
+			this.name        = name != undefined?name:'text';
+			this.value       = value == undefined?'':value;
+			this.type        = type == undefined?'text':type;
+			this.pattern     = pattern == undefined?'':pattern;
+			this.placeholder = placeholder == undefined?'':placeholder;
+			this.required    = required == undefined?false:required;
+			this.filter      = filter;
+			// end
+
+			this.get = function(){
+				self.error = false;
+				self.error = !self.valid();
+				if(self.error && self.log == '')
+					self.log = self.required?'The '+self.name+' is invalid and is required':'The '+self.name+' is invalid';
+				else
+					self.log = '';
+				return self.value;
+			};
+
+			this.valid = function(){
+				self.log = '';
+				if(typeof self.pattern == 'function')
+					return self.pattern(self.value);
+				if(typeof self.pattern == 'object')
+					return self.pattern.test(self.value);
+				return (self.required && self.value != '') || !self.required;
+			}
+
+			this.like = function(value){
+				value = value.toLowerCase();
+				var exp = this.value.toLowerCase() || '';
+				if(value.indexOf(' ') != -1){
+					var reg = value.split(' ');
+					for(var i in reg){
+						if(exp.indexOf(reg[i]) == -1){
+							return false;
+							break;
+						}
+					}
+					return true;
+				}
+				return exp.indexOf(value) != -1;
+			}
+
+		};
+	}]);
+})();
+
+(function(){
+
+	'use strict';
+
+	angular.module('app.fac')
+	.factory('itemDevice', [function(){
+		return function(){
+			
+		};
+	}])
+
+})();
+
+(function(){
+
+	'use strict';
+
+	angular.module('app.fac')
+	.factory('itemFicha', ['entidad',function(entidad){
+		return function(ent, orders){
+			var self = this;
+
+			this.entidad = typeof ent != typeof entidad?new entidad():ent;
+			this.nro     = new Date().getTime();
+			this.orders  = Array.isArray(orders)?orders:[];
+
+
+		};
+	}])
+
+})();
+(function(){
+
+	'use strict';
+
+	angular.module('app.fac')
+	.factory('itemModel', [function(){
+		return function(){
+			
+		};
+	}])
+
+})();
+
+(function(){
+
+	'use strict';
+
+	angular.module('app.fac')
+	.factory('order', ['inputItem',function(inputItem){
+		return function(oid, device, referencia, serial, trabajo, notas){
+			var self = this;
+			
+
+
+			this.createOid = function (oid) {
+				if(typeof oid == typeof undefined)
+					d = 'Odraw'+new Date().getTime()+'ZtO';
+				return new inputItem('oid', oid, 'text', undefined, false, undefined, true);
+			}
+
+			//define propiedades
+			this.oid        = self.createOid(oid);
+			this.device     = new inputItem('device', device, 'text', undefined, false, undefined, true);
+			this.referencia = new inputItem('referencia', referencia, 'text', undefined, false, undefined, true);
+			this.serial     = new inputItem('serial', serial, 'text', undefined, false, undefined, true);
+			this.trabajo    = new inputItem('trabajo', trabajo, 'text', undefined, false, undefined, true);
+			this.notas      = new inputItem('notas', notas, 'text', undefined, false, undefined, true);
+		};
+	}])
+
+})();
+
+	(function(){
+
+		'use strict';
+
+		angular.module('app.fac')
+		.factory('order', ['inputItem','oAuth',function(inputItem,oAuth){
+			return function (fid, oid, reference, type, code, work, note, state){
+				var uid         = oAuth.getCurrent().uid;
+				
+				this.params     = ['fid', 'reference', 'code', 'work', 'notes', 'state'];
+				this.oid        = new inputItem('oid', oid, 'text', undefined, false, undefined, true);
+				this.fid        = new inputItem('fid', fid, 'text', undefined, false, undefined, true);
+				this.type       = new inputItem('type', type || 'N/A', 'text', undefined, false, undefined, true);
+				this.reference  = new inputItem('reference', reference || 'N/A', 'text', undefined, false, undefined, true);
+				this.code       = new inputItem('code', code || '0000', 'text', undefined, false, undefined, true);
+				this.work       = new inputItem('work', work, 'text', undefined, false, undefined, true);
+				this.owner      = new inputItem('owner', uid, 'text', undefined, false, undefined, true);
+				this.state      = new inputItem('state', state || 'draft', 'text', undefined, false, undefined, true);
+				this.notes      = [];
+
+				this.pushNote = function(note){
+					this.notes.push({text:note,owner:uid,date: new Date()});
+				};
+
+				if(note != undefined)
+					this.pushNote(note);
+
+
+
+				this.get = function(){
+					var order = {};
+					for(var p in this.params){
+						var param = this.params[p];
+						order[param] = Array.isArray(this[param])?this[param]:this[param].get();
+					}
+					return order;
+				};
+			};
+		}]);
+
+
+	})();	
 (function(){
 
 	'use strict';
@@ -1087,50 +1497,6 @@
 
 })();
 
-(function() {
-    'use strict';
-
-    angular
-        .module('app.loadingbar')
-        .config(loadingbarConfig)
-        ;
-    loadingbarConfig.$inject = ['cfpLoadingBarProvider'];
-    function loadingbarConfig(cfpLoadingBarProvider){
-      cfpLoadingBarProvider.includeBar = true;
-      cfpLoadingBarProvider.includeSpinner = false;
-      cfpLoadingBarProvider.latencyThreshold = 500;
-      cfpLoadingBarProvider.parentSelector = '.wrapper > section';
-    }
-})();
-(function() {
-    'use strict';
-
-    angular
-        .module('app.loadingbar')
-        .run(loadingbarRun)
-        ;
-    loadingbarRun.$inject = ['$rootScope', '$timeout', 'cfpLoadingBar'];
-    function loadingbarRun($rootScope, $timeout, cfpLoadingBar){
-
-      // Loading bar transition
-      // ----------------------------------- 
-      var thBar;
-      $rootScope.$on('$stateChangeStart', function() {
-          if($('.wrapper > section').length) // check if bar container exists
-            thBar = $timeout(function() {
-              cfpLoadingBar.start();
-            }, 0); // sets a latency Threshold
-      });
-      $rootScope.$on('$stateChangeSuccess', function(event) {
-          event.targetScope.$watch('$viewContentLoaded', function () {
-            $timeout.cancel(thBar);
-            cfpLoadingBar.complete();
-          });
-      });
-
-    }
-
-})();
 (function() {
     'use strict';
 
@@ -1417,64 +1783,6 @@
     'use strict';
 
     angular
-        .module('app.settings')
-        .run(settingsRun);
-
-    settingsRun.$inject = ['$rootScope', '$localStorage'];
-
-    function settingsRun($rootScope, $localStorage){
-
-      // Global Settings
-      // -----------------------------------
-      $rootScope.app = {
-        name: 'Angle',
-        description: 'Angular Bootstrap Admin Template',
-        year: ((new Date()).getFullYear()),
-        layout: {
-          isFixed: true,
-          isCollapsed: false,
-          isBoxed: false,
-          isRTL: false,
-          horizontal: false,
-          isFloat: false,
-          asideHover: false,
-          theme: null,
-          asideScrollbar: false
-        },
-        useFullLayout: false,
-        hiddenFooter: false,
-        offsidebarOpen: false,
-        asideToggled: false,
-        viewAnimation: 'ng-fadeInUp'
-      };
-
-      // Setup the layout mode
-      $rootScope.app.layout.horizontal = ( $rootScope.$stateParams.layout === 'app-h') ;
-
-      // Restore layout settings [*** UNCOMMENT TO ENABLE ***]
-      // if( angular.isDefined($localStorage.layout) )
-      //   $rootScope.app.layout = $localStorage.layout;
-      // else
-      //   $localStorage.layout = $rootScope.app.layout;
-      //
-      // $rootScope.$watch('app.layout', function () {
-      //   $localStorage.layout = $rootScope.app.layout;
-      // }, true);
-
-      // Close submenu when sidebar change from collapsed to normal
-      $rootScope.$watch('app.layout.isCollapsed', function(newValue) {
-        if( newValue === false )
-          $rootScope.$broadcast('closeSidebarMenu');
-      });
-
-    }
-
-})();
-
-(function() {
-    'use strict';
-
-    angular
         .module('app.translate')
         .config(translateConfig)
         ;
@@ -1535,6 +1843,224 @@
 
     }
 })();
+(function(){
+
+	'use strict';
+
+	angular.module('app.sections')
+	.controller('userSettingsCtrl', ['$scope','oAuth', function($scope,oAuth){
+		
+		$scope.logout = function(){
+			oAuth.signOut();
+			$scope.app.offsidebarOpen = !$scope.app.offsidebarOpen;
+		};
+
+		
+	}]);
+
+})();
+(function(){
+
+	'use strict';
+
+	angular.module('app.sections')
+	.controller('dashBoardCtrl', ['$uibModal','$scope', '$entidades', 'entidad', function($uibModal, $scope, $entidades, entidad){
+		
+	}]);
+
+})();
+
+(function(){
+
+	'use strict';
+
+	angular.module('app.sections')
+	.controller('editionEntityModalCtrl', ['entidad','$entidades','$scope','ent','$uibModalInstance', function(entidad,$entidades,$scope,ent,$uibModalInstance){
+		
+		$scope.entity  = new entidad(ent.eid.value, ent.referencia.value, ent.nombre.value, ent.apellido.value, ent.telefono.value, ent.direccion.value, ent.email.value);
+		$scope.keys    = angular.copy(ent.keys);
+
+		$scope.close = function(){
+			//console.log(angular.copy($scope.entity))
+			$uibModalInstance.close($scope.entity);
+		};
+
+		$scope.save = function(){
+			var promise;
+			setTimeout(function(){
+				$scope.$apply(function(){
+					var data    = $scope.entity.get();
+					if(!$scope.entity.error){
+						if($scope.entity.eid.get() === '')
+							promise = $entidades.push(data);
+						else
+							promise = $entidades.update($scope.entity.eid.get(),data);
+						promise
+						.then(
+							function(eid){
+								if($scope.entity.eid.get() === '')
+									$scope.entity.set('eid',eid);
+								$scope.close();
+							},
+							function(error){
+								console.log(error);
+							}
+						)
+					}else{
+						//console.log($scope.entity.error, $scope.entity);
+					}
+				});
+			},100);
+		}
+
+	}]);
+
+})();
+
+(function(){
+
+	'use strict';
+
+	angular.module('app.sections')
+	.controller('entityListCtrl', ['$uibModal','$scope', '$entidades', 'entidad', function($uibModal, $scope, $entidades, entidad){
+		$scope.list = [];
+		$scope.cols = [];
+
+		$entidades.get(function(list){
+			$scope.list = list;
+			if(Array.isArray($scope.list) && $scope.list[0] != undefined){
+				$scope.cols = $scope.list[0].get_headers();
+			}
+		});
+
+		$scope.new = function(){
+			$scope.oepnModal();
+		};
+
+		$scope.edit = function(ent){
+			$scope.oepnModal(ent);
+		};
+
+		$scope.oepnModal = function(ent){
+			ent = ent == undefined?new entidad():ent;
+			var modalInstance = $uibModal.open({
+				animation: true,
+				templateUrl: 'app/views/editionEntityModal.html',
+				controller: 'editionEntityModalCtrl',
+				backdrop: 'static',
+				resolve: {
+			     	ent: function () {
+			     		return ent;
+			     	}
+			    }
+			});
+		}
+	}])
+
+})();
+
+(function(){
+
+	'use strict';
+
+	angular.module('app.sections')
+	.controller('orderFormCtrl', ['$scope','order','$orders','ficha','$fichas','$uibModal','$state','$entidades','entidad', function($scope,order,$orders,ficha,$fichas,$uibModal,$state,$entidades,entidad){
+		$scope.entidadFilter = new entidad();
+		if($state.params.order_key == "0")
+			$scope.ficha = new ficha();
+		$scope.ordersList = [];
+
+		$orders.get(function(list){
+			$scope.ordersList = list.filter(function(it){
+				return it.fid.value == $scope.ficha.fid.value;
+			});
+			console.log($scope.ordersList, 'ordersList');
+		});
+
+		$scope.pushOrder = function(){
+			$orders.push(angular.copy($scope.formOrder));
+			$scope.formOrder = new order($scope.ficha.fid.value);
+		};
+
+		$entidades.get(function(entidades){
+			setTimeout(function(){
+				$scope.$apply(function(){
+					$scope.entidades = entidades;
+				});
+			},1);
+		});
+
+		$scope.selectEntity = function(){
+			if($scope.entidadFilter.eid.get() !== ''){
+				$scope.ficha.entidad = angular.copy($scope.entidadFilter);
+				var nf = new ficha($scope.ficha.entidad.eid.get());
+				$fichas.push(nf)
+				.then(
+					function(ficha){
+						$scope.ficha.fid.value = ficha.fid.value;
+						$scope.formOrder       = new order(ficha.fid.value);
+
+						console.log(ficha,'if added');
+					}
+				)
+			}else{
+				console.log('No se a seleccionado la entidad');
+			}
+		};
+
+		$scope.setSelection = function($item){
+			$scope.entidadFilter = $item;
+		};
+
+
+		$scope.getEntitys = function(value){
+			console.log(value,$scope.entidades);
+			return $scope.entidades.filter(function(it){
+				return it.nombre.value.indexOf(value) !=-1;
+			});
+		};
+
+
+		$scope.createEntity = function(ent){
+			ent = ent == undefined?new entidad():ent;
+			var modalInstance = $uibModal.open({
+				animation: true,
+				templateUrl: 'app/views/editionEntityModal.html',
+				controller:  'editionEntityModalCtrl',
+				backdrop:    'static',
+				resolve: {
+			     	ent: function () {
+			     		return ent;
+			     	}
+			    }
+			});
+
+			modalInstance.result
+			.then(
+				function(newEntity){
+					if(newEntity.eid != undefined && newEntity.eid.get() != ''){
+						console.log(newEntity,'if a new entity')
+						$scope.entidadFilter = newEntity;
+					}
+				}
+			);
+		}
+
+	}]);
+
+})();
+
+(function(){
+
+	'use strict';
+
+	angular.module('app.sections')
+	.controller('orderListCtrl', ['$scope', function($scope){
+		
+	}])
+
+})();
+
 /**=========================================================
  * Module: animate-enabled.js
  * Enable or disables ngAnimate for element with directive
@@ -1965,155 +2491,61 @@
     }
 })();
 
-(function(){
+(function() {
+    'use strict';
 
-	'use strict';
+    angular
+        .module('app.settings')
+        .run(settingsRun);
 
-	angular.module('app.sections')
-	.controller('userSettingsCtrl', ['$scope','oAuth', function($scope,oAuth){
-		
-		$scope.logout = function(){
-			oAuth.signOut();
-			$scope.app.offsidebarOpen = !$scope.app.offsidebarOpen;
-		};
+    settingsRun.$inject = ['$rootScope', '$localStorage'];
 
-		
-	}]);
+    function settingsRun($rootScope, $localStorage){
 
-})();
-(function(){
+      // Global Settings
+      // -----------------------------------
+      $rootScope.app = {
+        name: 'Angle',
+        description: 'Angular Bootstrap Admin Template',
+        year: ((new Date()).getFullYear()),
+        layout: {
+          isFixed: true,
+          isCollapsed: false,
+          isBoxed: false,
+          isRTL: false,
+          horizontal: false,
+          isFloat: false,
+          asideHover: false,
+          theme: null,
+          asideScrollbar: false
+        },
+        useFullLayout: false,
+        hiddenFooter: false,
+        offsidebarOpen: false,
+        asideToggled: false,
+        viewAnimation: 'ng-fadeInUp'
+      };
 
-	'use strict';
+      // Setup the layout mode
+      $rootScope.app.layout.horizontal = ( $rootScope.$stateParams.layout === 'app-h') ;
 
-	angular.module('app.sections')
-	.controller('dashBoardCtrl', ['$uibModal','$scope', '$entidades', 'entidad', function($uibModal, $scope, $entidades, entidad){
-		
-	}]);
+      // Restore layout settings [*** UNCOMMENT TO ENABLE ***]
+      // if( angular.isDefined($localStorage.layout) )
+      //   $rootScope.app.layout = $localStorage.layout;
+      // else
+      //   $localStorage.layout = $rootScope.app.layout;
+      //
+      // $rootScope.$watch('app.layout', function () {
+      //   $localStorage.layout = $rootScope.app.layout;
+      // }, true);
 
-})();
+      // Close submenu when sidebar change from collapsed to normal
+      $rootScope.$watch('app.layout.isCollapsed', function(newValue) {
+        if( newValue === false )
+          $rootScope.$broadcast('closeSidebarMenu');
+      });
 
-(function(){
-
-	'use strict';
-
-	angular.module('app.sections')
-	.controller('editionEntityModalCtrl', ['entidad','$entidades','$scope','ent','$uibModalInstance', function(entidad,$entidades,$scope,ent,$uibModalInstance){
-		
-		$scope.entity  = new entidad(ent.eid.value, ent.referencia.value, ent.nombre.value, ent.apellido.value, ent.telefono.value, ent.direccion.value, ent.email.value);
-		$scope.keys    = angular.copy(ent.keys);
-
-		$scope.close = function(){
-			$uibModalInstance.dismiss('cancel');
-		};
-
-		$scope.save = function(){
-			var promise;
-			setTimeout(function(){
-				$scope.$apply(function(){
-					var data    = $scope.entity.get();
-					if(!$scope.entity.error){
-						if($scope.entity.eid.get() === '')
-							promise = $entidades.push(data);
-						else
-							promise = $entidades.update($scope.entity.eid.get(),data);
-						promise
-						.then(
-							function(){
-								$scope.close();
-							},
-							function(error){
-								console.log(error);
-							}
-						)
-					}else{
-						//console.log($scope.entity.error, $scope.entity);
-					}
-				});
-			},100);
-		}
-
-	}]);
-
-})();
-
-(function(){
-
-	'use strict';
-
-	angular.module('app.sections')
-	.controller('entityListCtrl', ['$uibModal','$scope', '$entidades', 'entidad', function($uibModal, $scope, $entidades, entidad){
-		$scope.list = [];
-		$scope.cols = [];
-
-		$entidades.get(function(list){
-			$scope.list = list;
-			if(Array.isArray($scope.list) && $scope.list[0] != undefined){
-				$scope.cols = $scope.list[0].get_headers();
-			}
-		});
-
-		$scope.new = function(){
-			$scope.oepnModal();
-		};
-
-		$scope.edit = function(ent){
-			$scope.oepnModal(ent);
-		};
-
-		$scope.oepnModal = function(ent){
-			ent = ent == undefined?new entidad():ent;
-			var modalInstance = $uibModal.open({
-				animation: true,
-				templateUrl: 'app/views/editionEntityModal.html',
-				controller: 'editionEntityModalCtrl',
-				backdrop: 'static',
-				resolve: {
-			     	ent: function () {
-			     		return ent;
-			     	}
-			    }
-			});
-		}
-	}])
-
-})();
-
-(function(){
-
-	'use strict';
-
-	angular.module('app.sections')
-	.controller('orderFormCtrl', ['$scope','$state','itemFicha','$entidades', function($scope,$state,itemFicha,$entidades){
-		if($state.params.order_key == "0")
-			$scope.ficha = new itemFicha();
-		console.log($scope.ficha);
-		$entidades.get(function(entidades){
-			setTimeout(function(){
-				$scope.$apply(function(){
-					$scope.entidades = entidades;
-				});
-			},1);
-		});
-
-		$scope.getEntitys = function(value){
-			console.log(value,$scope.entidades);
-			return $scope.entidades.filter(function(it){
-				return it.nombre.value.indexOf(value) !=-1;
-			});
-		};
-
-	}]);
-
-})();
-
-(function(){
-
-	'use strict';
-
-	angular.module('app.sections')
-	.controller('orderListCtrl', ['$scope', function($scope){
-		
-	}])
+    }
 
 })();
 

@@ -38,6 +38,22 @@
 				return (self.required && self.value != '') || !self.required;
 			}
 
+			this.like = function(value){
+				value = value.toLowerCase();
+				var exp = this.value.toLowerCase() || '';
+				if(value.indexOf(' ') != -1){
+					var reg = value.split(' ');
+					for(var i in reg){
+						if(exp.indexOf(reg[i]) == -1){
+							return false;
+							break;
+						}
+					}
+					return true;
+				}
+				return exp.indexOf(value) != -1;
+			}
+
 		};
 	}]);
 })();
