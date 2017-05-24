@@ -20,10 +20,8 @@
 
 		$scope.filterOrderList = function(list){
 			$scope.ordersList = list.filter(function(it){
-				console.log(it.fid.value , $scope.ficha.fid.value,'filterOrderList')
 				return it.fid.value == $scope.ficha.fid.value;
 			});
-			console.log($scope.ordersList, 'ordersList');
 		};
 
 		$orders.get(function(list){
@@ -50,8 +48,6 @@
 						$scope.formOrder       = new order(ficha.fid.value);
 
 						$scope.filterOrderList($scope.allOrders);
-
-						console.log(ficha,'if added');
 					}
 				)
 			}else{

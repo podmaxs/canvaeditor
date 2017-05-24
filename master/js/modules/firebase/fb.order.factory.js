@@ -40,7 +40,6 @@
 						.push(data_order.get())
 						.then(
 							function(data){
-								console.log(data, 'on push order');
 								var oid = data.path.o[1] || 0;
 								data_order.oid.value = oid;
 								resolve(data_order);
