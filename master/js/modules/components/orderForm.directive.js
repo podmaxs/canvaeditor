@@ -9,7 +9,7 @@
 				// name: '',
 				// priority: 1,
 				// terminal: true,
-				// scope: {}, // {} = isolate, true = child, false/undefined = no change
+				scope: {formOrder:'='}, // {} = isolate, true = child, false/undefined = no change
 				// controller: function($scope, $element, $attrs, $transclude) {},
 				// require: 'ngModel', // Array = multiple requires, ? = optional, ^ = check parent elements
 				// restrict: 'A', // E = Element, A = Attribute, C = Class, M = Comment
@@ -20,10 +20,10 @@
                         	'<td>'+
                         		'<div class="form-group">'+
 	                        		'<select ng-model="formOrder.type.value" class="form-control">'+
-	                                    '<option value="">SmartPhone</option>'+
-	                                    '<option value="">Tablet</option>'+
-	                                    '<option value="">Notebook</option>'+
-	                                    '<option value="">Otro</option>'+
+	                                    '<option value="phone">SmartPhone</option>'+
+	                                    '<option value="tablet">Tablet</option>'+
+	                                    '<option value="notebook">Notebook</option>'+
+	                                    '<option value="otro">Otro</option>'+
 	                                '</select>'+
                             	'</div>'+
                         	'</td>'+
@@ -40,17 +40,17 @@
                            	'<td>'+
                            		'<div class="form-group">'+
                                 	'<select ng-model="formOrder.work.value" class="form-control">'+
-                                    '<option value="">Desbloqueo parcial</option>'+
-                                    '<option value="">Desbloqueo completo</option>'+
-                                    '<option value="">Servicio Tecnico</option>'+
-                                    '<option value="">Software</option>'+
-                                    '<option value="">Presupuestar</option>'+
+                                    '<option value="desbloqueo">Desbloqueo parcial</option>'+
+                                    '<option value="desbloqueo completo">Desbloqueo completo</option>'+
+                                    '<option value="servicio tecnico">Servicio Tecnico</option>'+
+                                    '<option value="software">Software</option>'+
+                                    '<option value="presupuesto">Presupuestar</option>'+
                                  '</select>'+
                               '</div>'+
                            '</td>'+
                            '<td>'+
                               '<div class="form-group">'+
-                                 '<textarea class="form-control no-resize"></textarea>'+
+                                 '<textarea ng-model="note" class="form-control no-resize"></textarea>'+
                               '</div>'+
                            '</td>'+
                            '<td width="50px">'+
@@ -67,13 +67,23 @@
 				link: function($scope, iElm, iAttrs, controller) {
 					
 				},
-				controller:function($scope, $orders){
+				controller:function($scope, $orders, order){
 					$scope.ordersListLoaded = [];
+					$scope.note             = "";
 
 					$orders.get(function(list){
 						$scope.ordersListLoaded = list;
 					});
 
+
+					$scope.pushOrder = function(){
+						var form = angular.copy($scope.formOrder);
+						if($scope.note != '')
+							form.pushNote($scope.note);
+						$orders.push(form);
+						$scope.formOrder = new order(form.fid.value);
+						$scope.note      = "";
+					};
 
 
 					$scope.getReferences = function(value){

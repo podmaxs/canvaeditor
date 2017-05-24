@@ -16,10 +16,6 @@
 			console.log($scope.ordersList, 'ordersList');
 		});
 
-		$scope.pushOrder = function(){
-			$orders.push(angular.copy($scope.formOrder));
-			$scope.formOrder = new order($scope.ficha.fid.value);
-		};
 
 		$entidades.get(function(entidades){
 			setTimeout(function(){
