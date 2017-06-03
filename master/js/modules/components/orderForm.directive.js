@@ -51,12 +51,12 @@
 	                        	'</td>'+
 	                        	'<td>'+
 	                        		'<div class="form-group">'+
-	                        			'<input type="text" ng-model="formOrder.reference.value" uib-typeahead="references for references in getReferences($viewValue)" typeahead-loading="loadingReferences" typeahead-no-results="noResults" class="form-control">'+
+	                        			'<input type="text" placeholder="{{formOrder.reference.placeholder}}" ng-model="formOrder.reference.value" uib-typeahead="references for references in getReferences($viewValue)" typeahead-loading="loadingReferences" typeahead-no-results="noResults" class="form-control">'+
 	                        		'</div>'+
 	                    		'</td>'+
 	                    		'<td>'+
 	                    			'<div class="form-group">'+
-	                    				'<input type="text" ng-model="formOrder.code.value" class="form-control" />'+
+	                    				'<input placeholder="{{formOrder.code.placeholder}}"  type="text" ng-model="formOrder.code.value" class="form-control" />'+
 	                              	'</div>'+
 	                          	'</td>'+
 	                           	'<td>'+
@@ -72,7 +72,7 @@
 	                           '</td>'+
 	                           '<td>'+
 	                              '<div class="form-group">'+
-	                                 '<textarea ng-model="note" class="form-control no-resize"></textarea>'+
+	                                 '<textarea placeholder="Nota de orden" ng-model="note" class="form-control no-resize"></textarea>'+
 	                              '</div>'+
 	                           '</td>'+
 	                           '<td width="50px">'+
@@ -92,6 +92,7 @@
 				controller:function($scope, $orders, order){
 					$scope.ordersListLoaded = [];
 					$scope.note             = "";
+					//$scope.formOrder        = new order();
 
 					$orders.get(function(list){
 						$scope.ordersListLoaded = list;
@@ -110,7 +111,7 @@
 
 					$scope.getReferences = function(value){
 						return  $scope.ordersListLoaded.filter(function(it){
-							return it.reference.like(value);
+							return it.reference.like(value) && it.type.value == $scope.formOrder.type.value;
 						})
 						.map(function(it){
 							return it.reference.value;

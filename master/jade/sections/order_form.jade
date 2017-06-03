@@ -66,7 +66,7 @@ h3
 									td.text-center
 										| {{order.notes[0].text}}
 									td.text-center
-										.btn.btn-xs.btn-default
+										.btn.btn-xs.btn-default(ng-click="order.pop()")
 											.fa.fa-trash
 								tr(ng-if="!ordersList[0]")
 									td.text-center.bg-white(colspan="100%")

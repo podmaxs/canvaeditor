@@ -11,7 +11,6 @@
 			this.nro     = new Date().getTime();
 			this.orders  = Array.isArray(orders)?orders:[];
 
-
 		};
 	}])
 

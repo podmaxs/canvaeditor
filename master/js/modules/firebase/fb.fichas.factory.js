@@ -3,7 +3,7 @@
 		'use strict';
 
 		angular.module('app.firebase')
-		.factory('$fichas', ['$q','$entidades', function($q,$entidades){
+		.factory('$fichas', ['$q','$entidades','$orders', function($q,$entidades,$orders){
 			return new function(){
 				var self = this;
 
@@ -30,6 +30,32 @@
 						);
 					})
 				};
+
+				this.pop = function(data_ficha){
+					return $q(function(resolve, reject){
+						db.child('fichas')
+						.child(data_ficha.fid.value)
+						.remove()
+						.then(
+							function(){
+								$orders.popGroup(data_ficha.fid.value)
+								.then(
+									function(d){
+										resolve();
+									},
+									function(e){
+										reject(e);
+									}
+								)
+
+							},
+							function(){
+								reject('Error on delete ficha nro '+data_ficha.nro.value);
+							}
+						)
+
+					});
+				}
 
 
 

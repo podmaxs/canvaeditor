@@ -6,8 +6,8 @@ var args        = require('yargs').argv,
     $           = require('gulp-load-plugins')(),
     gulpsync    = $.sync(gulp),
     PluginError = $.util.PluginError,
-    del         = require('del');
-    var browserSync = require('browser-sync').create();
+    del         = require('del'),
+    browserSync = require('browser-sync').create();
 
 
 // production mode (see build task)
