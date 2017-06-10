@@ -47,12 +47,48 @@
 				this.encode_list_orders = function(orders){
 					var list = [];
 					for(var id in orders){
-						var or      = orders[id],
-							nor     = new order(or.fid, id, or.reference, or.type, or.code, or.work, or.date, or.notes, or.state);
-							nor.pop = function(){self.pop(id)};
+						var or          = orders[id],
+							nor         = new order(or.fid, id, or.reference, or.type, or.code, or.work, or.date, or.notes, or.state);
+							nor.pop     = function(){self.pop(id)};
+							nor.publish = function(){self.publish(id)};
 						list.push(nor);
 					}
 					return list;
+				};
+
+				this.publish = function(id_order){
+					return $q(function(resolve, reject){
+						db.child('orders')
+						.child(id_order)
+						.child('state')
+						.set('publish')
+						.then(
+							function(){
+								resolve();
+							},
+							function(error){
+								console.log(error,'onUpdate');
+								reject();
+							}
+						)
+					});
+				}
+
+				this.update = function(id_order,data_order){
+					return $q(function(resolve, reject){
+						db.child('orders')
+						.child(id_order)
+						.set(data_order)
+						.then(
+							function(){
+								resolve();
+							},
+							function(error){
+								console.log(error,'onUpdate');
+								reject();
+							}
+						)
+					});
 				};
 
 				this.popGroup = function(fid){

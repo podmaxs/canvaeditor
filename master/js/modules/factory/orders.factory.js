@@ -30,6 +30,9 @@
 						this.pushNote(note);
 
 
+				this.publish = function(){
+					
+				}
 
 				this.get = function(){
 					var order = {};

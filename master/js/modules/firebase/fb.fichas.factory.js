@@ -31,6 +31,25 @@
 					})
 				};
 
+
+				this.publish = function(id_ficha){
+					return $q(function(resolve, reject){
+						db.child('fichas')
+						.child(id_ficha)
+						.child('state')
+						.set('publish')
+						.then(
+							function(){
+								resolve(true);
+							},
+							function(error){
+								console.log(error,'onUpdate');
+								reject();
+							}
+						)
+					});
+				}
+
 				this.pop = function(data_ficha){
 					return $q(function(resolve, reject){
 						db.child('fichas')

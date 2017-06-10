@@ -36,6 +36,18 @@
 				});
 			},1);
 		});
+		
+		$scope.saveFicha = function(){
+			$scope.ficha.publish($scope.ordersList)
+			.then(
+				function(idPrint){
+					console.log(idPrint,'on save ficha')
+				},
+				function(err){
+					console.log(err,'error on save ficha');
+				}
+			)
+		}
 
 		$scope.selectEntity = function(){
 			if($scope.entidadFilter.eid.get() !== ''){

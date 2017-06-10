@@ -87,12 +87,6 @@
 
 })();
 
-(function() {
-    'use strict';
-
-    angular
-        .module('app.navsearch', []);
-})();
 (function(){
 
 	'use strict';
@@ -118,6 +112,12 @@
     'use strict';
 
     angular
+        .module('app.navsearch', []);
+})();
+(function() {
+    'use strict';
+
+    angular
         .module('app.preloader', []);
 })();
 
@@ -134,17 +134,14 @@
     'use strict';
 
     angular
-        .module('app.settings', []);
+        .module('app.sidebar', []);
 })();
-(function(){
+(function() {
+    'use strict';
 
-	'use strict';
-
-	angular.module('app.sections',[])
-	
-
+    angular
+        .module('app.translate', []);
 })();
-
 (function() {
     'use strict';
 
@@ -158,14 +155,17 @@
     'use strict';
 
     angular
-        .module('app.translate', []);
+        .module('app.settings', []);
 })();
-(function() {
-    'use strict';
+(function(){
 
-    angular
-        .module('app.sidebar', []);
+	'use strict';
+
+	angular.module('app.sections',[])
+	
+
 })();
+
 (function() {
     'use strict';
 
@@ -645,10 +645,10 @@
 		'use strict';
 
 		angular.module('app.fac')
-		.factory('ficha', ['inputItem','oAuth',function(inputItem,oAuth){
+		.factory('ficha', ['inputItem','$q','$fichas','oAuth','$prints',function(inputItem,$q,$fichas,oAuth,$prints){
 			return function(eid, fid, nro, date, state){
 				var self = this;
-				var uid     = oAuth.getCurrent().uid;
+				var uid  = oAuth.getCurrent().uid;
 
 				this.params = ['nro', 'eid','owner', 'date', 'state'];
 				
@@ -658,7 +658,8 @@
 				this.date   = new inputItem('date', date || new Date().toString(), 'date', undefined, false, undefined, true);
 				this.state  = new inputItem('state', state || 'draft', 'text', undefined, false, undefined, true);;
 				this.owner  = new inputItem('owner', uid, 'text', undefined, false, undefined, true);
-				
+				this.print  = {};
+
 				this.get = function(){
 					var ficha = {};
 					for(var p in this.params){
@@ -667,6 +668,55 @@
 					}
 					return ficha;
 				};
+
+				this.publish = function(orders){
+					return $q(function(resolve, reject){
+						self.createPrint(orders)
+						.then(
+							function(idPrint){
+								$fichas.publish(self.fid.value)
+								.then(
+									function(){
+										if(Array.isArray(orders)){
+											for(var o in orders)
+												orders[o].publish();
+											resolve(idPrint)
+										}else{
+											$prints.pop(idPrint);
+											reject('Orders data invalid');
+										}
+									},
+									function(e){
+										reject(e);
+									}
+								);	
+							},
+							function(err){
+								reject(err);
+							}
+						)
+					});
+				}
+
+				
+
+				this.createPrint = function(orders){
+					return $q(function(resolve, reject){
+						self.print.orders = [];
+						for(var p in orders)
+							self.print.orders.push(orders[p].get());
+						self.print.ficha = self.get();
+						$prints.push('ficha',self.print)
+						.then(
+							function(id){
+								resolve(id);
+							},
+							function(err){
+								reject(err);
+							}
+						);
+					});
+				}
 
 
 			};
@@ -808,6 +858,9 @@
 						this.pushNote(note);
 
 
+				this.publish = function(){
+					
+				}
 
 				this.get = function(){
 					var order = {};
@@ -947,6 +1000,25 @@
 						);
 					})
 				};
+
+
+				this.publish = function(id_ficha){
+					return $q(function(resolve, reject){
+						db.child('fichas')
+						.child(id_ficha)
+						.child('state')
+						.set('publish')
+						.then(
+							function(){
+								resolve(true);
+							},
+							function(error){
+								console.log(error,'onUpdate');
+								reject();
+							}
+						)
+					});
+				}
 
 				this.pop = function(data_ficha){
 					return $q(function(resolve, reject){
@@ -1117,12 +1189,48 @@
 				this.encode_list_orders = function(orders){
 					var list = [];
 					for(var id in orders){
-						var or      = orders[id],
-							nor     = new order(or.fid, id, or.reference, or.type, or.code, or.work, or.date, or.notes, or.state);
-							nor.pop = function(){self.pop(id)};
+						var or          = orders[id],
+							nor         = new order(or.fid, id, or.reference, or.type, or.code, or.work, or.date, or.notes, or.state);
+							nor.pop     = function(){self.pop(id)};
+							nor.publish = function(){self.publish(id)};
 						list.push(nor);
 					}
 					return list;
+				};
+
+				this.publish = function(id_order){
+					return $q(function(resolve, reject){
+						db.child('orders')
+						.child(id_order)
+						.child('state')
+						.set('publish')
+						.then(
+							function(){
+								resolve();
+							},
+							function(error){
+								console.log(error,'onUpdate');
+								reject();
+							}
+						)
+					});
+				}
+
+				this.update = function(id_order,data_order){
+					return $q(function(resolve, reject){
+						db.child('orders')
+						.child(id_order)
+						.set(data_order)
+						.then(
+							function(){
+								resolve();
+							},
+							function(error){
+								console.log(error,'onUpdate');
+								reject();
+							}
+						)
+					});
 				};
 
 				this.popGroup = function(fid){
@@ -1163,115 +1271,58 @@
 		
 
 	})();
-/**=========================================================
- * Module: navbar-search.js
- * Navbar search toggler * Auto dismiss on ESC key
- =========================================================*/
+	(function(){
 
-(function() {
-    'use strict';
+		'use strict';
 
-    angular
-        .module('app.navsearch')
-        .directive('searchOpen', searchOpen)
-        .directive('searchDismiss', searchDismiss);
-
-    //
-    // directives definition
-    // 
-    
-    function searchOpen () {
-        var directive = {
-            controller: searchOpenController,
-            restrict: 'A'
-        };
-        return directive;
-
-    }
-
-    function searchDismiss () {
-        var directive = {
-            controller: searchDismissController,
-            restrict: 'A'
-        };
-        return directive;
-        
-    }
-
-    //
-    // Contrller definition
-    // 
-    
-    searchOpenController.$inject = ['$scope', '$element', 'NavSearch'];
-    function searchOpenController ($scope, $element, NavSearch) {
-      $element
-        .on('click', function (e) { e.stopPropagation(); })
-        .on('click', NavSearch.toggle);
-    }
-
-    searchDismissController.$inject = ['$scope', '$element', 'NavSearch'];
-    function searchDismissController ($scope, $element, NavSearch) {
-      
-      var inputSelector = '.navbar-form input[type="text"]';
-
-      $(inputSelector)
-        .on('click', function (e) { e.stopPropagation(); })
-        .on('keyup', function(e) {
-          if (e.keyCode === 27) // ESC
-            NavSearch.dismiss();
-        });
-        
-      // click anywhere closes the search
-      $(document).on('click', NavSearch.dismiss);
-      // dismissable options
-      $element
-        .on('click', function (e) { e.stopPropagation(); })
-        .on('click', NavSearch.dismiss);
-    }
-
-})();
+		angular.module('app.firebase')
+		.factory('$prints', ['$q', function($q){
+			return new function(){
+				var self = this;
+				var db   = firebase.database().ref();
+				var event = {};
 
 
-/**=========================================================
- * Module: nav-search.js
- * Services to share navbar search functions
- =========================================================*/
- 
-(function() {
-    'use strict';
+				this.push = function(type, data){
+					return $q(function(resolve, reject){
+						db.child('prints')
+						.push({type:type,data:data})
+						.then(
+							function(data){
+								console.log(data, 'on push print');
+								var eid = data.path.o[1] || 0;
+								resolve(eid);
+							},
+							function(error){
+								console.log(error,'onPush');
+								reject();
+							}
+						);
+					})
+				};
 
-    angular
-        .module('app.navsearch')
-        .service('NavSearch', NavSearch);
 
-    function NavSearch() {
-        this.toggle = toggle;
-        this.dismiss = dismiss;
+				this.pop = function(idPrint){
+					return $q(function(resolve, reject){
+						db.child('prints')
+						.child(idPrint)
+						.remove()
+						.then(
+							function(){
+								resolve(true);
+							},
+							function(){
+								reject('Error on delet order')
+							}
+						);
+					});
+				}
 
-        ////////////////
+			};
+		}]);
+		
 
-        var navbarFormSelector = 'form.navbar-form';
-
-        function toggle() {
-          var navbarForm = $(navbarFormSelector);
-
-          navbarForm.toggleClass('open');
-          
-          var isOpen = navbarForm.hasClass('open');
-          
-          navbarForm.find('input')[isOpen ? 'focus' : 'blur']();
-        }
-
-        function dismiss() {
-          $(navbarFormSelector)
-            .removeClass('open') // Close control
-            .find('input[type="text"]').blur() // remove focus
-            .val('') // Empty input
-            ;
-        }        
-    }
-})();
-
+	})();
 (function(){
 
 	'use strict';
@@ -1572,6 +1623,115 @@
     }
 
 })();
+/**=========================================================
+ * Module: navbar-search.js
+ * Navbar search toggler * Auto dismiss on ESC key
+ =========================================================*/
+
+(function() {
+    'use strict';
+
+    angular
+        .module('app.navsearch')
+        .directive('searchOpen', searchOpen)
+        .directive('searchDismiss', searchDismiss);
+
+    //
+    // directives definition
+    // 
+    
+    function searchOpen () {
+        var directive = {
+            controller: searchOpenController,
+            restrict: 'A'
+        };
+        return directive;
+
+    }
+
+    function searchDismiss () {
+        var directive = {
+            controller: searchDismissController,
+            restrict: 'A'
+        };
+        return directive;
+        
+    }
+
+    //
+    // Contrller definition
+    // 
+    
+    searchOpenController.$inject = ['$scope', '$element', 'NavSearch'];
+    function searchOpenController ($scope, $element, NavSearch) {
+      $element
+        .on('click', function (e) { e.stopPropagation(); })
+        .on('click', NavSearch.toggle);
+    }
+
+    searchDismissController.$inject = ['$scope', '$element', 'NavSearch'];
+    function searchDismissController ($scope, $element, NavSearch) {
+      
+      var inputSelector = '.navbar-form input[type="text"]';
+
+      $(inputSelector)
+        .on('click', function (e) { e.stopPropagation(); })
+        .on('keyup', function(e) {
+          if (e.keyCode === 27) // ESC
+            NavSearch.dismiss();
+        });
+        
+      // click anywhere closes the search
+      $(document).on('click', NavSearch.dismiss);
+      // dismissable options
+      $element
+        .on('click', function (e) { e.stopPropagation(); })
+        .on('click', NavSearch.dismiss);
+    }
+
+})();
+
+
+/**=========================================================
+ * Module: nav-search.js
+ * Services to share navbar search functions
+ =========================================================*/
+ 
+(function() {
+    'use strict';
+
+    angular
+        .module('app.navsearch')
+        .service('NavSearch', NavSearch);
+
+    function NavSearch() {
+        this.toggle = toggle;
+        this.dismiss = dismiss;
+
+        ////////////////
+
+        var navbarFormSelector = 'form.navbar-form';
+
+        function toggle() {
+          var navbarForm = $(navbarFormSelector);
+
+          navbarForm.toggleClass('open');
+          
+          var isOpen = navbarForm.hasClass('open');
+          
+          navbarForm.find('input')[isOpen ? 'focus' : 'blur']();
+        }
+
+        function dismiss() {
+          $(navbarFormSelector)
+            .removeClass('open') // Close control
+            .find('input[type="text"]').blur() // remove focus
+            .val('') // Empty input
+            ;
+        }        
+    }
+})();
+
 (function() {
     'use strict';
 
@@ -1854,290 +2014,425 @@
 })();
 
 
+/**=========================================================
+ * Module: sidebar-menu.js
+ * Handle sidebar collapsible elements
+ =========================================================*/
+
 (function() {
     'use strict';
 
     angular
-        .module('app.settings')
-        .run(settingsRun);
+        .module('app.sidebar')
+        .controller('SidebarController', SidebarController);
 
-    settingsRun.$inject = ['$rootScope', '$localStorage'];
+    SidebarController.$inject = ['$rootScope', '$scope', '$state', 'SidebarLoader', 'Utils'];
+    function SidebarController($rootScope, $scope, $state, SidebarLoader,  Utils) {
 
-    function settingsRun($rootScope, $localStorage){
+        activate();
 
-      // Global Settings
-      // -----------------------------------
-      $rootScope.app = {
-        name: 'Angle',
-        description: 'Angular Bootstrap Admin Template',
-        year: ((new Date()).getFullYear()),
-        layout: {
-          isFixed: true,
-          isCollapsed: false,
-          isBoxed: false,
-          isRTL: false,
-          horizontal: false,
-          isFloat: false,
-          asideHover: false,
-          theme: null,
-          asideScrollbar: false
-        },
-        useFullLayout: false,
-        hiddenFooter: false,
-        offsidebarOpen: false,
-        asideToggled: false,
-        viewAnimation: 'ng-fadeInUp'
-      };
+        ////////////////
 
-      // Setup the layout mode
-      $rootScope.app.layout.horizontal = ( $rootScope.$stateParams.layout === 'app-h') ;
+        function activate() {
+          var collapseList = [];
 
-      // Restore layout settings [*** UNCOMMENT TO ENABLE ***]
-      // if( angular.isDefined($localStorage.layout) )
-      //   $rootScope.app.layout = $localStorage.layout;
-      // else
-      //   $localStorage.layout = $rootScope.app.layout;
-      //
-      // $rootScope.$watch('app.layout', function () {
-      //   $localStorage.layout = $rootScope.app.layout;
-      // }, true);
+          // demo: when switch from collapse to hover, close all items
+          $rootScope.$watch('app.layout.asideHover', function(oldVal, newVal){
+            if ( newVal === false && oldVal === true) {
+              closeAllBut(-1);
+            }
+          });
 
-      // Close submenu when sidebar change from collapsed to normal
-      $rootScope.$watch('app.layout.isCollapsed', function(newValue) {
-        if( newValue === false )
-          $rootScope.$broadcast('closeSidebarMenu');
-      });
 
+          // Load menu from json file
+          // ----------------------------------- 
+
+          SidebarLoader.getMenu(sidebarReady);
+          
+          function sidebarReady(items) {
+            $scope.menuItems = items;
+          }
+
+          // Handle sidebar and collapse items
+          // ----------------------------------
+          
+          $scope.getMenuItemPropClasses = function(item) {
+            return (item.heading ? 'nav-heading' : '') +
+                   (isActive(item) ? ' active' : '') ;
+          };
+
+          $scope.addCollapse = function($index, item) {
+            collapseList[$index] = $rootScope.app.layout.asideHover ? true : !isActive(item);
+          };
+
+          $scope.isCollapse = function($index) {
+            return (collapseList[$index]);
+          };
+
+          $scope.toggleCollapse = function($index, isParentItem) {
+
+            // collapsed sidebar doesn't toggle drodopwn
+            if( Utils.isSidebarCollapsed() || $rootScope.app.layout.asideHover ) return true;
+
+            // make sure the item index exists
+            if( angular.isDefined( collapseList[$index] ) ) {
+              if ( ! $scope.lastEventFromChild ) {
+                collapseList[$index] = !collapseList[$index];
+                closeAllBut($index);
+              }
+            }
+            else if ( isParentItem ) {
+              closeAllBut(-1);
+            }
+            
+            $scope.lastEventFromChild = isChild($index);
+
+            return true;
+          
+          };
+
+          // Controller helpers
+          // ----------------------------------- 
+
+            // Check item and children active state
+            function isActive(item) {
+
+              if(!item) return;
+
+              if( !item.sref || item.sref === '#') {
+                var foundActive = false;
+                angular.forEach(item.submenu, function(value) {
+                  if(isActive(value)) foundActive = true;
+                });
+                return foundActive;
+              }
+              else
+                return $state.is(item.sref) || $state.includes(item.sref);
+            }
+
+            function closeAllBut(index) {
+              index += '';
+              for(var i in collapseList) {
+                if(index < 0 || index.indexOf(i) < 0)
+                  collapseList[i] = true;
+              }
+            }
+
+            function isChild($index) {
+              /*jshint -W018*/
+              return (typeof $index === 'string') && !($index.indexOf('-') < 0);
+            }
+        
+        } // activate
     }
 
 })();
 
-(function(){
+/**=========================================================
+ * Module: sidebar.js
+ * Wraps the sidebar and handles collapsed state
+ =========================================================*/
 
-	'use strict';
+(function() {
+    'use strict';
 
-	angular.module('app.sections')
-	.controller('userSettingsCtrl', ['$scope','oAuth', function($scope,oAuth){
-		
-		$scope.logout = function(){
-			oAuth.signOut();
-			$scope.app.offsidebarOpen = !$scope.app.offsidebarOpen;
-		};
+    angular
+        .module('app.sidebar')
+        .directive('sidebar', sidebar);
 
-		
-	}]);
+    sidebar.$inject = ['$rootScope', '$timeout', '$window', 'Utils'];
+    function sidebar ($rootScope, $timeout, $window, Utils) {
+        var $win = angular.element($window);
+        var directive = {
+            // bindToController: true,
+            // controller: Controller,
+            // controllerAs: 'vm',
+            link: link,
+            restrict: 'EA',
+            template: '<nav class="sidebar" ng-transclude></nav>',
+            transclude: true,
+            replace: true
+            // scope: {}
+        };
+        return directive;
 
-})();
-(function(){
+        function link(scope, element, attrs) {
 
-	'use strict';
+          var currentState = $rootScope.$state.current.name;
+          var $sidebar = element;
 
-	angular.module('app.sections')
-	.controller('dashBoardCtrl', ['$uibModal','$scope', '$entidades', 'entidad', function($uibModal, $scope, $entidades, entidad){
-		
-	}]);
+          var eventName = Utils.isTouch() ? 'click' : 'mouseenter' ;
+          var subNav = $();
 
-})();
+          $sidebar.on( eventName, '.nav > li', function() {
 
-(function(){
+            if( Utils.isSidebarCollapsed() || $rootScope.app.layout.asideHover ) {
 
-	'use strict';
+              subNav.trigger('mouseleave');
+              subNav = toggleMenuItem( $(this), $sidebar);
 
-	angular.module('app.sections')
-	.controller('editionEntityModalCtrl', ['entidad','$entidades','$scope','ent','$uibModalInstance', function(entidad,$entidades,$scope,ent,$uibModalInstance){
-		
-		$scope.entity  = new entidad(ent.eid.value, ent.referencia.value, ent.nombre.value, ent.apellido.value, ent.telefono.value, ent.direccion.value, ent.email.value);
-		$scope.keys    = angular.copy(ent.keys);
+              // Used to detect click and touch events outside the sidebar          
+              sidebarAddBackdrop();
 
-		$scope.close = function(){
-			//console.log(angular.copy($scope.entity))
-			$uibModalInstance.close($scope.entity);
-		};
+            }
 
-		$scope.save = function(){
-			var promise;
-			setTimeout(function(){
-				$scope.$apply(function(){
-					var data    = $scope.entity.get();
-					if(!$scope.entity.error){
-						if($scope.entity.eid.get() === '')
-							promise = $entidades.push(data);
-						else
-							promise = $entidades.update($scope.entity.eid.get(),data);
-						promise
-						.then(
-							function(eid){
-								if($scope.entity.eid.get() === '')
-									$scope.entity.set('eid',eid);
-								$scope.close();
-							},
-							function(error){
-								console.log(error);
-							}
-						)
-					}else{
-						//console.log($scope.entity.error, $scope.entity);
-					}
-				});
-			},100);
-		}
+          });
 
-	}]);
+          scope.$on('closeSidebarMenu', function() {
+            removeFloatingNav();
+          });
 
-})();
+          // Normalize state when resize to mobile
+          $win.on('resize', function() {
+            if( ! Utils.isMobile() )
+          	asideToggleOff();
+          });
 
-(function(){
+          // Adjustment on route changes
+          $rootScope.$on('$stateChangeStart', function(event, toState) {
+            currentState = toState.name;
+            // Hide sidebar automatically on mobile
+            asideToggleOff();
 
-	'use strict';
+            $rootScope.$broadcast('closeSidebarMenu');
+          });
 
-	angular.module('app.sections')
-	.controller('entityListCtrl', ['$uibModal','$scope', '$entidades', 'entidad', function($uibModal, $scope, $entidades, entidad){
-		$scope.list = [];
-		$scope.cols = [];
+      	  // Autoclose when click outside the sidebar
+          if ( angular.isDefined(attrs.sidebarAnyclickClose) ) {
+            
+            var wrapper = $('.wrapper');
+            var sbclickEvent = 'click.sidebar';
+            
+            $rootScope.$watch('app.asideToggled', watchExternalClicks);
 
-		$entidades.get(function(list){
-			$scope.list = list;
-			if(Array.isArray($scope.list) && $scope.list[0] != undefined){
-				$scope.cols = $scope.list[0].get_headers();
-			}
-		});
+          }
 
-		$scope.new = function(){
-			$scope.oepnModal();
-		};
+          //////
 
-		$scope.edit = function(ent){
-			$scope.oepnModal(ent);
-		};
+          function watchExternalClicks(newVal) {
+            // if sidebar becomes visible
+            if ( newVal === true ) {
+              $timeout(function(){ // render after current digest cycle
+                wrapper.on(sbclickEvent, function(e){
+                  // if not child of sidebar
+                  if( ! $(e.target).parents('.aside').length ) {
+                    asideToggleOff();
+                  }
+                });
+              });
+            }
+            else {
+              // dettach event
+              wrapper.off(sbclickEvent);
+            }
+          }
 
-		$scope.oepnModal = function(ent){
-			ent = ent == undefined?new entidad():ent;
-			var modalInstance = $uibModal.open({
-				animation: true,
-				templateUrl: 'app/views/editionEntityModal.html',
-				controller: 'editionEntityModalCtrl',
-				backdrop: 'static',
-				resolve: {
-			     	ent: function () {
-			     		return ent;
-			     	}
-			    }
-			});
-		}
-	}])
+          function asideToggleOff() {
+            $rootScope.app.asideToggled = false;
+            if(!scope.$$phase) scope.$apply(); // anti-pattern but sometimes necessary
+      	  }
+        }
+        
+        ///////
 
-})();
+        function sidebarAddBackdrop() {
+          var $backdrop = $('<div/>', { 'class': 'dropdown-backdrop'} );
+          $backdrop.insertAfter('.aside-inner').on('click mouseenter', function () {
+            removeFloatingNav();
+          });
+        }
 
-(function(){
+        // Open the collapse sidebar submenu items when on touch devices 
+        // - desktop only opens on hover
+        function toggleTouchItem($element){
+          $element
+            .siblings('li')
+            .removeClass('open')
+            .end()
+            .toggleClass('open');
+        }
 
-	'use strict';
+        // Handles hover to open items under collapsed menu
+        // ----------------------------------- 
+        function toggleMenuItem($listItem, $sidebar) {
 
-	angular.module('app.sections')
-	.controller('orderFormCtrl', ['$scope','order','$orders','ficha','$fichas','$uibModal','$state','$entidades','entidad', function($scope,order,$orders,ficha,$fichas,$uibModal,$state,$entidades,entidad){
-		$scope.entidadFilter = new entidad();
-		if($state.params.order_key == "0")
-			$scope.ficha = new ficha();
-		$scope.allOrders = [];
-		$scope.ordersList = [];
+          removeFloatingNav();
 
+          var ul = $listItem.children('ul');
+          
+          if( !ul.length ) return $();
+          if( $listItem.hasClass('open') ) {
+            toggleTouchItem($listItem);
+            return $();
+          }
 
-		$scope.$watch('allOrders',function(n){
-			if(n!= undefined){
-				$scope.filterOrderList(n);
-			}
-		},true);
+          var $aside = $('.aside');
+          var $asideInner = $('.aside-inner'); // for top offset calculation
+          // float aside uses extra padding on aside
+          var mar = parseInt( $asideInner.css('padding-top'), 0) + parseInt( $aside.css('padding-top'), 0);
+          var subNav = ul.clone().appendTo( $aside );
+          
+          toggleTouchItem($listItem);
 
+          var itemTop = ($listItem.position().top + mar) - $sidebar.scrollTop();
+          var vwHeight = $win.height();
 
-		$scope.filterOrderList = function(list){
-			$scope.ordersList = list.filter(function(it){
-				return it.fid.value == $scope.ficha.fid.value;
-			});
-		};
+          subNav
+            .addClass('nav-floating')
+            .css({
+              position: $rootScope.app.layout.isFixed ? 'fixed' : 'absolute',
+              top:      itemTop,
+              bottom:   (subNav.outerHeight(true) + itemTop > vwHeight) ? 0 : 'auto'
+            });
 
-		$orders.get(function(list){
-			$scope.allOrders = list;
-		});
+          subNav.on('mouseleave', function() {
+            toggleTouchItem($listItem);
+            subNav.remove();
+          });
 
+          return subNav;
+        }
 
-		$entidades.get(function(entidades){
-			setTimeout(function(){
-				$scope.$apply(function(){
-					$scope.entidades = entidades;
-				});
-			},1);
-		});
+        function removeFloatingNav() {
+          $('.dropdown-backdrop').remove();
+          $('.sidebar-subnav.nav-floating').remove();
+          $('.sidebar li.open').removeClass('open');
+        }
+    }
 
-		$scope.selectEntity = function(){
-			if($scope.entidadFilter.eid.get() !== ''){
-				$scope.ficha.entidad = angular.copy($scope.entidadFilter);
-				var nf = new ficha($scope.ficha.entidad.eid.get());
-				$fichas.push(nf)
-				.then(
-					function(ficha){
-						$scope.ficha.fid.value = ficha.fid.value;
-						$scope.formOrder       = new order(ficha.fid.value);
-
-						$scope.filterOrderList($scope.allOrders);
-					}
-				)
-			}else{
-				console.log('No se a seleccionado la entidad');
-			}
-		};
-
-		$scope.setSelection = function($item){
-			$scope.entidadFilter = $item;
-		};
-
-
-		$scope.getEntitys = function(value){
-			console.log(value,$scope.entidades);
-			return $scope.entidades.filter(function(it){
-				return it.nombre.value.indexOf(value) !=-1;
-			});
-		};
-
-
-		$scope.createEntity = function(ent){
-			ent = ent == undefined?new entidad():ent;
-			var modalInstance = $uibModal.open({
-				animation: true,
-				templateUrl: 'app/views/editionEntityModal.html',
-				controller:  'editionEntityModalCtrl',
-				backdrop:    'static',
-				resolve: {
-			     	ent: function () {
-			     		return ent;
-			     	}
-			    }
-			});
-
-			modalInstance.result
-			.then(
-				function(newEntity){
-					if(newEntity.eid != undefined && newEntity.eid.get() != ''){
-						console.log(newEntity,'if a new entity')
-						$scope.entidadFilter = newEntity;
-					}
-				}
-			);
-		}
-
-	}]);
 
 })();
 
-(function(){
 
-	'use strict';
+(function() {
+    'use strict';
 
-	angular.module('app.sections')
-	.controller('orderListCtrl', ['$scope', function($scope){
-		
-	}])
+    angular
+        .module('app.sidebar')
+        .service('SidebarLoader', SidebarLoader);
 
+    SidebarLoader.$inject = ['$http'];
+    function SidebarLoader($http) {
+        this.getMenu = getMenu;
+
+        ////////////////
+
+        function getMenu(onReady, onError) {
+          var menuJson = 'server/sidebar-menu.json',
+              menuURL  = menuJson + '?v=' + (new Date().getTime()); // jumps cache
+            
+          onError = onError || function() { alert('Failure loading menu'); };
+
+          $http
+            .get(menuURL)
+            .success(onReady)
+            .error(onError);
+        }
+    }
+})();
+(function() {
+    'use strict';
+
+    angular
+        .module('app.sidebar')
+        .controller('UserBlockController', UserBlockController);
+
+    UserBlockController.$inject = ['$rootScope', '$scope'];
+    function UserBlockController($rootScope, $scope) {
+
+        activate();
+
+        ////////////////
+
+        function activate() {
+          $rootScope.user = {
+            name:     'John',
+            job:      'ng-developer',
+            picture:  'app/img/user/02.jpg'
+          };
+
+          // Hides/show user avatar on sidebar
+          $rootScope.toggleUserBlock = function(){
+            $rootScope.$broadcast('toggleUserBlock');
+          };
+
+          $rootScope.userBlockVisible = true;
+
+          var detach = $rootScope.$on('toggleUserBlock', function(/*event, args*/) {
+
+            $rootScope.userBlockVisible = ! $rootScope.userBlockVisible;
+
+          });
+
+          $scope.$on('$destroy', detach);
+        }
+    }
 })();
 
+(function() {
+    'use strict';
+
+    angular
+        .module('app.translate')
+        .config(translateConfig)
+        ;
+    translateConfig.$inject = ['$translateProvider'];
+    function translateConfig($translateProvider){
+
+      $translateProvider.useStaticFilesLoader({
+          prefix : 'app/i18n/',
+          suffix : '.json'
+      });
+
+      $translateProvider.preferredLanguage('en');
+      $translateProvider.useLocalStorage();
+      $translateProvider.usePostCompiling(true);
+      $translateProvider.useSanitizeValueStrategy('sanitizeParameters');
+
+    }
+})();
+(function() {
+    'use strict';
+
+    angular
+        .module('app.translate')
+        .run(translateRun)
+        ;
+    translateRun.$inject = ['$rootScope', '$translate'];
+    
+    function translateRun($rootScope, $translate){
+
+      // Internationalization
+      // ----------------------
+
+      $rootScope.language = {
+        // Handles language dropdown
+        listIsOpen: false,
+        // list of available languages
+        available: {
+          'en':       'English',
+          'es_AR':    'Español'
+        },
+        // display always the current ui language
+        init: function () {
+          var proposedLanguage = $translate.proposedLanguage() || $translate.use();
+          var preferredLanguage = $translate.preferredLanguage(); // we know we have set a preferred one in app.config
+          $rootScope.language.selected = $rootScope.language.available[ (proposedLanguage || preferredLanguage) ];
+        },
+        set: function (localeId) {
+          // Set the new idiom
+          $translate.use(localeId);
+          // save a reference for the current language
+          $rootScope.language.selected = $rootScope.language.available[localeId];
+          // finally toggle dropdown
+          $rootScope.language.listIsOpen = ! $rootScope.language.listIsOpen;
+        }
+      };
+
+      $rootScope.language.init();
+
+    }
+})();
 /**=========================================================
  * Module: animate-enabled.js
  * Enable or disables ngAnimate for element with directive
@@ -2572,419 +2867,296 @@
     'use strict';
 
     angular
-        .module('app.translate')
-        .config(translateConfig)
-        ;
-    translateConfig.$inject = ['$translateProvider'];
-    function translateConfig($translateProvider){
+        .module('app.settings')
+        .run(settingsRun);
 
-      $translateProvider.useStaticFilesLoader({
-          prefix : 'app/i18n/',
-          suffix : '.json'
-      });
+    settingsRun.$inject = ['$rootScope', '$localStorage'];
 
-      $translateProvider.preferredLanguage('en');
-      $translateProvider.useLocalStorage();
-      $translateProvider.usePostCompiling(true);
-      $translateProvider.useSanitizeValueStrategy('sanitizeParameters');
+    function settingsRun($rootScope, $localStorage){
 
-    }
-})();
-(function() {
-    'use strict';
-
-    angular
-        .module('app.translate')
-        .run(translateRun)
-        ;
-    translateRun.$inject = ['$rootScope', '$translate'];
-    
-    function translateRun($rootScope, $translate){
-
-      // Internationalization
-      // ----------------------
-
-      $rootScope.language = {
-        // Handles language dropdown
-        listIsOpen: false,
-        // list of available languages
-        available: {
-          'en':       'English',
-          'es_AR':    'Español'
+      // Global Settings
+      // -----------------------------------
+      $rootScope.app = {
+        name: 'Angle',
+        description: 'Angular Bootstrap Admin Template',
+        year: ((new Date()).getFullYear()),
+        layout: {
+          isFixed: true,
+          isCollapsed: false,
+          isBoxed: false,
+          isRTL: false,
+          horizontal: false,
+          isFloat: false,
+          asideHover: false,
+          theme: null,
+          asideScrollbar: false
         },
-        // display always the current ui language
-        init: function () {
-          var proposedLanguage = $translate.proposedLanguage() || $translate.use();
-          var preferredLanguage = $translate.preferredLanguage(); // we know we have set a preferred one in app.config
-          $rootScope.language.selected = $rootScope.language.available[ (proposedLanguage || preferredLanguage) ];
-        },
-        set: function (localeId) {
-          // Set the new idiom
-          $translate.use(localeId);
-          // save a reference for the current language
-          $rootScope.language.selected = $rootScope.language.available[localeId];
-          // finally toggle dropdown
-          $rootScope.language.listIsOpen = ! $rootScope.language.listIsOpen;
-        }
+        useFullLayout: false,
+        hiddenFooter: false,
+        offsidebarOpen: false,
+        asideToggled: false,
+        viewAnimation: 'ng-fadeInUp'
       };
 
-      $rootScope.language.init();
+      // Setup the layout mode
+      $rootScope.app.layout.horizontal = ( $rootScope.$stateParams.layout === 'app-h') ;
 
-    }
-})();
-/**=========================================================
- * Module: sidebar-menu.js
- * Handle sidebar collapsible elements
- =========================================================*/
+      // Restore layout settings [*** UNCOMMENT TO ENABLE ***]
+      // if( angular.isDefined($localStorage.layout) )
+      //   $rootScope.app.layout = $localStorage.layout;
+      // else
+      //   $localStorage.layout = $rootScope.app.layout;
+      //
+      // $rootScope.$watch('app.layout', function () {
+      //   $localStorage.layout = $rootScope.app.layout;
+      // }, true);
 
-(function() {
-    'use strict';
+      // Close submenu when sidebar change from collapsed to normal
+      $rootScope.$watch('app.layout.isCollapsed', function(newValue) {
+        if( newValue === false )
+          $rootScope.$broadcast('closeSidebarMenu');
+      });
 
-    angular
-        .module('app.sidebar')
-        .controller('SidebarController', SidebarController);
-
-    SidebarController.$inject = ['$rootScope', '$scope', '$state', 'SidebarLoader', 'Utils'];
-    function SidebarController($rootScope, $scope, $state, SidebarLoader,  Utils) {
-
-        activate();
-
-        ////////////////
-
-        function activate() {
-          var collapseList = [];
-
-          // demo: when switch from collapse to hover, close all items
-          $rootScope.$watch('app.layout.asideHover', function(oldVal, newVal){
-            if ( newVal === false && oldVal === true) {
-              closeAllBut(-1);
-            }
-          });
-
-
-          // Load menu from json file
-          // ----------------------------------- 
-
-          SidebarLoader.getMenu(sidebarReady);
-          
-          function sidebarReady(items) {
-            $scope.menuItems = items;
-          }
-
-          // Handle sidebar and collapse items
-          // ----------------------------------
-          
-          $scope.getMenuItemPropClasses = function(item) {
-            return (item.heading ? 'nav-heading' : '') +
-                   (isActive(item) ? ' active' : '') ;
-          };
-
-          $scope.addCollapse = function($index, item) {
-            collapseList[$index] = $rootScope.app.layout.asideHover ? true : !isActive(item);
-          };
-
-          $scope.isCollapse = function($index) {
-            return (collapseList[$index]);
-          };
-
-          $scope.toggleCollapse = function($index, isParentItem) {
-
-            // collapsed sidebar doesn't toggle drodopwn
-            if( Utils.isSidebarCollapsed() || $rootScope.app.layout.asideHover ) return true;
-
-            // make sure the item index exists
-            if( angular.isDefined( collapseList[$index] ) ) {
-              if ( ! $scope.lastEventFromChild ) {
-                collapseList[$index] = !collapseList[$index];
-                closeAllBut($index);
-              }
-            }
-            else if ( isParentItem ) {
-              closeAllBut(-1);
-            }
-            
-            $scope.lastEventFromChild = isChild($index);
-
-            return true;
-          
-          };
-
-          // Controller helpers
-          // ----------------------------------- 
-
-            // Check item and children active state
-            function isActive(item) {
-
-              if(!item) return;
-
-              if( !item.sref || item.sref === '#') {
-                var foundActive = false;
-                angular.forEach(item.submenu, function(value) {
-                  if(isActive(value)) foundActive = true;
-                });
-                return foundActive;
-              }
-              else
-                return $state.is(item.sref) || $state.includes(item.sref);
-            }
-
-            function closeAllBut(index) {
-              index += '';
-              for(var i in collapseList) {
-                if(index < 0 || index.indexOf(i) < 0)
-                  collapseList[i] = true;
-              }
-            }
-
-            function isChild($index) {
-              /*jshint -W018*/
-              return (typeof $index === 'string') && !($index.indexOf('-') < 0);
-            }
-        
-        } // activate
     }
 
 })();
 
-/**=========================================================
- * Module: sidebar.js
- * Wraps the sidebar and handles collapsed state
- =========================================================*/
+(function(){
 
-(function() {
-    'use strict';
+	'use strict';
 
-    angular
-        .module('app.sidebar')
-        .directive('sidebar', sidebar);
+	angular.module('app.sections')
+	.controller('userSettingsCtrl', ['$scope','oAuth', function($scope,oAuth){
+		
+		$scope.logout = function(){
+			oAuth.signOut();
+			$scope.app.offsidebarOpen = !$scope.app.offsidebarOpen;
+		};
 
-    sidebar.$inject = ['$rootScope', '$timeout', '$window', 'Utils'];
-    function sidebar ($rootScope, $timeout, $window, Utils) {
-        var $win = angular.element($window);
-        var directive = {
-            // bindToController: true,
-            // controller: Controller,
-            // controllerAs: 'vm',
-            link: link,
-            restrict: 'EA',
-            template: '<nav class="sidebar" ng-transclude></nav>',
-            transclude: true,
-            replace: true
-            // scope: {}
-        };
-        return directive;
+		
+	}]);
 
-        function link(scope, element, attrs) {
+})();
+(function(){
 
-          var currentState = $rootScope.$state.current.name;
-          var $sidebar = element;
+	'use strict';
 
-          var eventName = Utils.isTouch() ? 'click' : 'mouseenter' ;
-          var subNav = $();
-
-          $sidebar.on( eventName, '.nav > li', function() {
-
-            if( Utils.isSidebarCollapsed() || $rootScope.app.layout.asideHover ) {
-
-              subNav.trigger('mouseleave');
-              subNav = toggleMenuItem( $(this), $sidebar);
-
-              // Used to detect click and touch events outside the sidebar          
-              sidebarAddBackdrop();
-
-            }
-
-          });
-
-          scope.$on('closeSidebarMenu', function() {
-            removeFloatingNav();
-          });
-
-          // Normalize state when resize to mobile
-          $win.on('resize', function() {
-            if( ! Utils.isMobile() )
-          	asideToggleOff();
-          });
-
-          // Adjustment on route changes
-          $rootScope.$on('$stateChangeStart', function(event, toState) {
-            currentState = toState.name;
-            // Hide sidebar automatically on mobile
-            asideToggleOff();
-
-            $rootScope.$broadcast('closeSidebarMenu');
-          });
-
-      	  // Autoclose when click outside the sidebar
-          if ( angular.isDefined(attrs.sidebarAnyclickClose) ) {
-            
-            var wrapper = $('.wrapper');
-            var sbclickEvent = 'click.sidebar';
-            
-            $rootScope.$watch('app.asideToggled', watchExternalClicks);
-
-          }
-
-          //////
-
-          function watchExternalClicks(newVal) {
-            // if sidebar becomes visible
-            if ( newVal === true ) {
-              $timeout(function(){ // render after current digest cycle
-                wrapper.on(sbclickEvent, function(e){
-                  // if not child of sidebar
-                  if( ! $(e.target).parents('.aside').length ) {
-                    asideToggleOff();
-                  }
-                });
-              });
-            }
-            else {
-              // dettach event
-              wrapper.off(sbclickEvent);
-            }
-          }
-
-          function asideToggleOff() {
-            $rootScope.app.asideToggled = false;
-            if(!scope.$$phase) scope.$apply(); // anti-pattern but sometimes necessary
-      	  }
-        }
-        
-        ///////
-
-        function sidebarAddBackdrop() {
-          var $backdrop = $('<div/>', { 'class': 'dropdown-backdrop'} );
-          $backdrop.insertAfter('.aside-inner').on('click mouseenter', function () {
-            removeFloatingNav();
-          });
-        }
-
-        // Open the collapse sidebar submenu items when on touch devices 
-        // - desktop only opens on hover
-        function toggleTouchItem($element){
-          $element
-            .siblings('li')
-            .removeClass('open')
-            .end()
-            .toggleClass('open');
-        }
-
-        // Handles hover to open items under collapsed menu
-        // ----------------------------------- 
-        function toggleMenuItem($listItem, $sidebar) {
-
-          removeFloatingNav();
-
-          var ul = $listItem.children('ul');
-          
-          if( !ul.length ) return $();
-          if( $listItem.hasClass('open') ) {
-            toggleTouchItem($listItem);
-            return $();
-          }
-
-          var $aside = $('.aside');
-          var $asideInner = $('.aside-inner'); // for top offset calculation
-          // float aside uses extra padding on aside
-          var mar = parseInt( $asideInner.css('padding-top'), 0) + parseInt( $aside.css('padding-top'), 0);
-          var subNav = ul.clone().appendTo( $aside );
-          
-          toggleTouchItem($listItem);
-
-          var itemTop = ($listItem.position().top + mar) - $sidebar.scrollTop();
-          var vwHeight = $win.height();
-
-          subNav
-            .addClass('nav-floating')
-            .css({
-              position: $rootScope.app.layout.isFixed ? 'fixed' : 'absolute',
-              top:      itemTop,
-              bottom:   (subNav.outerHeight(true) + itemTop > vwHeight) ? 0 : 'auto'
-            });
-
-          subNav.on('mouseleave', function() {
-            toggleTouchItem($listItem);
-            subNav.remove();
-          });
-
-          return subNav;
-        }
-
-        function removeFloatingNav() {
-          $('.dropdown-backdrop').remove();
-          $('.sidebar-subnav.nav-floating').remove();
-          $('.sidebar li.open').removeClass('open');
-        }
-    }
-
+	angular.module('app.sections')
+	.controller('dashBoardCtrl', ['$uibModal','$scope', '$entidades', 'entidad', function($uibModal, $scope, $entidades, entidad){
+		
+	}]);
 
 })();
 
+(function(){
 
-(function() {
-    'use strict';
+	'use strict';
 
-    angular
-        .module('app.sidebar')
-        .service('SidebarLoader', SidebarLoader);
+	angular.module('app.sections')
+	.controller('editionEntityModalCtrl', ['entidad','$entidades','$scope','ent','$uibModalInstance', function(entidad,$entidades,$scope,ent,$uibModalInstance){
+		
+		$scope.entity  = new entidad(ent.eid.value, ent.referencia.value, ent.nombre.value, ent.apellido.value, ent.telefono.value, ent.direccion.value, ent.email.value);
+		$scope.keys    = angular.copy(ent.keys);
 
-    SidebarLoader.$inject = ['$http'];
-    function SidebarLoader($http) {
-        this.getMenu = getMenu;
+		$scope.close = function(){
+			//console.log(angular.copy($scope.entity))
+			$uibModalInstance.close($scope.entity);
+		};
 
-        ////////////////
+		$scope.save = function(){
+			var promise;
+			setTimeout(function(){
+				$scope.$apply(function(){
+					var data    = $scope.entity.get();
+					if(!$scope.entity.error){
+						if($scope.entity.eid.get() === '')
+							promise = $entidades.push(data);
+						else
+							promise = $entidades.update($scope.entity.eid.get(),data);
+						promise
+						.then(
+							function(eid){
+								if($scope.entity.eid.get() === '')
+									$scope.entity.set('eid',eid);
+								$scope.close();
+							},
+							function(error){
+								console.log(error);
+							}
+						)
+					}else{
+						//console.log($scope.entity.error, $scope.entity);
+					}
+				});
+			},100);
+		}
 
-        function getMenu(onReady, onError) {
-          var menuJson = 'server/sidebar-menu.json',
-              menuURL  = menuJson + '?v=' + (new Date().getTime()); // jumps cache
-            
-          onError = onError || function() { alert('Failure loading menu'); };
+	}]);
 
-          $http
-            .get(menuURL)
-            .success(onReady)
-            .error(onError);
-        }
-    }
 })();
-(function() {
-    'use strict';
 
-    angular
-        .module('app.sidebar')
-        .controller('UserBlockController', UserBlockController);
+(function(){
 
-    UserBlockController.$inject = ['$rootScope', '$scope'];
-    function UserBlockController($rootScope, $scope) {
+	'use strict';
 
-        activate();
+	angular.module('app.sections')
+	.controller('entityListCtrl', ['$uibModal','$scope', '$entidades', 'entidad', function($uibModal, $scope, $entidades, entidad){
+		$scope.list = [];
+		$scope.cols = [];
 
-        ////////////////
+		$entidades.get(function(list){
+			$scope.list = list;
+			if(Array.isArray($scope.list) && $scope.list[0] != undefined){
+				$scope.cols = $scope.list[0].get_headers();
+			}
+		});
 
-        function activate() {
-          $rootScope.user = {
-            name:     'John',
-            job:      'ng-developer',
-            picture:  'app/img/user/02.jpg'
-          };
+		$scope.new = function(){
+			$scope.oepnModal();
+		};
 
-          // Hides/show user avatar on sidebar
-          $rootScope.toggleUserBlock = function(){
-            $rootScope.$broadcast('toggleUserBlock');
-          };
+		$scope.edit = function(ent){
+			$scope.oepnModal(ent);
+		};
 
-          $rootScope.userBlockVisible = true;
+		$scope.oepnModal = function(ent){
+			ent = ent == undefined?new entidad():ent;
+			var modalInstance = $uibModal.open({
+				animation: true,
+				templateUrl: 'app/views/editionEntityModal.html',
+				controller: 'editionEntityModalCtrl',
+				backdrop: 'static',
+				resolve: {
+			     	ent: function () {
+			     		return ent;
+			     	}
+			    }
+			});
+		}
+	}])
 
-          var detach = $rootScope.$on('toggleUserBlock', function(/*event, args*/) {
+})();
 
-            $rootScope.userBlockVisible = ! $rootScope.userBlockVisible;
+(function(){
 
-          });
+	'use strict';
 
-          $scope.$on('$destroy', detach);
-        }
-    }
+	angular.module('app.sections')
+	.controller('orderFormCtrl', ['$scope','order','$orders','ficha','$fichas','$uibModal','$state','$entidades','entidad', function($scope,order,$orders,ficha,$fichas,$uibModal,$state,$entidades,entidad){
+		$scope.entidadFilter = new entidad();
+		if($state.params.order_key == "0")
+			$scope.ficha = new ficha();
+		$scope.allOrders = [];
+		$scope.ordersList = [];
+
+
+		$scope.$watch('allOrders',function(n){
+			if(n!= undefined){
+				$scope.filterOrderList(n);
+			}
+		},true);
+
+
+		$scope.filterOrderList = function(list){
+			$scope.ordersList = list.filter(function(it){
+				return it.fid.value == $scope.ficha.fid.value;
+			});
+		};
+
+		$orders.get(function(list){
+			$scope.allOrders = list;
+		});
+
+
+		$entidades.get(function(entidades){
+			setTimeout(function(){
+				$scope.$apply(function(){
+					$scope.entidades = entidades;
+				});
+			},1);
+		});
+		
+		$scope.saveFicha = function(){
+			$scope.ficha.publish($scope.ordersList)
+			.then(
+				function(idPrint){
+					console.log(idPrint,'on save ficha')
+				},
+				function(err){
+					console.log(err,'error on save ficha');
+				}
+			)
+		}
+
+		$scope.selectEntity = function(){
+			if($scope.entidadFilter.eid.get() !== ''){
+				$scope.ficha.entidad = angular.copy($scope.entidadFilter);
+				var nf = new ficha($scope.ficha.entidad.eid.get());
+				$fichas.push(nf)
+				.then(
+					function(ficha){
+						$scope.ficha.fid.value = ficha.fid.value;
+						$scope.formOrder       = new order(ficha.fid.value);
+
+						$scope.filterOrderList($scope.allOrders);
+					}
+				)
+			}else{
+				console.log('No se a seleccionado la entidad');
+			}
+		};
+
+		$scope.setSelection = function($item){
+			$scope.entidadFilter = $item;
+		};
+
+
+		$scope.getEntitys = function(value){
+			console.log(value,$scope.entidades);
+			return $scope.entidades.filter(function(it){
+				return it.nombre.value.indexOf(value) !=-1;
+			});
+		};
+
+
+		$scope.createEntity = function(ent){
+			ent = ent == undefined?new entidad():ent;
+			var modalInstance = $uibModal.open({
+				animation: true,
+				templateUrl: 'app/views/editionEntityModal.html',
+				controller:  'editionEntityModalCtrl',
+				backdrop:    'static',
+				resolve: {
+			     	ent: function () {
+			     		return ent;
+			     	}
+			    }
+			});
+
+			modalInstance.result
+			.then(
+				function(newEntity){
+					if(newEntity.eid != undefined && newEntity.eid.get() != ''){
+						console.log(newEntity,'if a new entity')
+						$scope.entidadFilter = newEntity;
+					}
+				}
+			);
+		}
+
+	}]);
+
+})();
+
+(function(){
+
+	'use strict';
+
+	angular.module('app.sections')
+	.controller('orderListCtrl', ['$scope', function($scope){
+		
+	}])
+
 })();
 
 (function() {
