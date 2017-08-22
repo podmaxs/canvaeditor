@@ -1,0 +1,27 @@
+div.p-sm.text-center
+	.panel.panel-default(style="max-width:700px; margin:20px auto;", ng-repeat="p in [0]")
+		table.table.table-bordered.mb-none
+			thead
+				tr
+					th(width="50%")
+						|p
+					th(width="50%")
+						|b
+		table.table.table-bordered(style="border-top:1px solid #ddd;")
+			thead
+				tr
+					th.text-left
+						| Descripcion
+					th.text-center
+						| Presio
+			tbody
+				tr(ng-repeat="or in [1,2,3]")
+					td
+						.media
+							.media-body.text-left
+								h4.media-heading.text-thin
+									.label.label-default.text-dark Media heading
+								p.text-thin
+									| Lorem ipsum dolor sit amet, consectetur adipisicing elit. Nihil consectetur voluptas quos, dolorem quae magnam debitis, nobis id in, ut aliquid iste suscipit. Cupiditate est adipisci tempora, beatae optio unde!
+					td
+						|r
