@@ -31,10 +31,19 @@
             'app.pages',
             'app.fac',
             'app.components',
+            'app.canva'
         ]);
 })();
 
 
+	(function(){
+
+		'use strict';
+
+		angular.module('app.canva',[]);
+		
+
+	})();
 (function() {
     'use strict';
 
@@ -87,15 +96,6 @@
 
 })();
 
-(function(){
-
-	'use strict';
-
-	angular.module('app.pages',[])
-	
-
-})();
-
 (function() {
     'use strict';
 
@@ -114,6 +114,15 @@
     angular
         .module('app.navsearch', []);
 })();
+(function(){
+
+	'use strict';
+
+	angular.module('app.pages',[])
+	
+
+})();
+
 (function() {
     'use strict';
 
@@ -129,6 +138,21 @@
         .module('app.routes', [
             'app.lazyload'
         ]);
+})();
+(function(){
+
+	'use strict';
+
+	angular.module('app.sections',[])
+	
+
+})();
+
+(function() {
+    'use strict';
+
+    angular
+        .module('app.settings', []);
 })();
 (function() {
     'use strict';
@@ -151,21 +175,531 @@
           ]);
 })();
 
-(function() {
-    'use strict';
+	(function(){
 
-    angular
-        .module('app.settings', []);
-})();
-(function(){
+		'use strict';
 
-	'use strict';
+		angular.module('app.canva')
+		.directive('canvaEditor', ['canvasModel','lineLayer','imageLayer','rectLayer',function(canvasModel,lineLayer,imageLayer,rectLayer){
+			
+			return {
+				// name: '',
+				// priority: 1,
+				// terminal: true,
+				// scope: {}, // {} = isolate, true = child, false/undefined = no change
+				// controller: function($scope, $element, $attrs, $transclude) {},
+				// require: 'ngModel', // Array = multiple requires, ? = optional, ^ = check parent elements
+				// restrict: 'A', // E = Element, A = Attribute, C = Class, M = Comment
+				template: ''+
+					'<div class="page" ng-click="open()">'+
+						'<canvas width="{{config.width}}" height="{{config.height}}"></canvas>'+
+					'</div>'+
+					'<div class="left-page-tools">'+
+						'<div class="panel panel-default m-sm">'+
+							'<div class="panel-body">'+
+								'<div class="btn btn-default" ng-click="model.open()">Save</div>'+
+							'</div>'+
+						'</div>'+
+						'<layers-list model="model" ></layers-list>'+
+						'<layer-editor model="model"></layer-editor>'+
+					'</div>'+
+				'',
+				// templateUrl: '',
+				// replace: true,
+				// transclude: true,
+				// compile: function(tElement, tAttrs, function transclude(function(scope, cloneLinkingFn){ return function linking(scope, elm, attrs){}})),
+				link: function($scope, iElm, iAttrs, controller) {
+					$scope.config = {
+						width: '550',
+						height: '500'
+					};
+					$scope.canvas = null;
+					$scope.model;
+					$scope.$watch('config',function(n){
+						if(n)
+							$scope.createModel();
+					});
 
-	angular.module('app.sections',[])
-	
+					angular.element(iElm).ready(function(){
+						//$scope.createModel();
+					});
 
-})();
+					$scope.open = function(){
+						if($scope.y)
+							$scope.y++;
+						else
+							$scope.y =250;
+						$scope.model.update(1,function(it, index){
+							return new lineLayer(50,100,$scope.y,$scope.y);
+						});
+					}
 
+					$scope.createModel = function(){
+						var canvas = iElm[0].getElementsByTagName('CANVAS');
+						if(canvas[0]){
+							$scope.canvas = canvas[0];
+							$scope.model = new canvasModel(canvas[0],$scope.config);
+							$scope.model.push(new rectLayer(0, 550, 0, 500,['rgba(0,0,0,.3)','rgba(0,0,0,.7)']));
+							$scope.model.push(new imageLayer('http://localhost:3000/app/img/android2.png',-225, 25));
+							$scope.model.push(new lineLayer(350, 400, 100, 100));
+							$scope.model.push(new lineLayer(350, 400, 200, 200));
+							$scope.model.draw();
+						}
+					}
+				}
+			};
+		}]);
+
+	})();	
+	(function(){
+
+		'use strict';
+
+		angular.module('app.canva')
+		.factory('canvasModel', ['$q',function($q){
+			return function (layerObject, config){
+				var self = this;
+				this.ctx = null;
+				this.layerList = [];
+				this.config    = config;
+				this.layerObject = layerObject;
+				
+				if(layerObject){
+					this.ctx = layerObject.getContext("2d");
+				}
+
+				this.open = function(){
+					var data = self.layerObject.toDataURL('image/png');
+					console.log(data)
+					window.open(data,'proyecto.png');
+				}
+
+				this.writeLine = function(x1, x2, y1, y2){
+					self.ctx.moveTo(x1 || 0, y1 || 0);
+					self.ctx.lineTo(x2 || 0, y2 || 0);
+					self.ctx.stroke();
+				}
+
+				this.addLayer = function(layer){
+					layer['_id'] = self.layerList.length;
+					self.layerList.push(layer);
+				}
+
+				this.clearLayers = function(){
+					self.layerList = [];
+				}
+
+				this.drawLayers = function(){
+					self.ctx.clearRect(0,0,self.config.width,self.config.height);
+					self.ctx.beginPath();
+					self.drawLayer(0);
+				}
+
+				this.drawLayer =function( i ){
+					return $q(function(resolve){
+						if(self.layerList[i]){
+							self.layerList[i]._setCtx(self.ctx);
+							self.layerList[i]._draw()
+							.then(function(){
+								self.drawLayer(i + 1)
+								.then(
+									function(){
+										resolve(true);
+									}
+								)
+							});
+						}else{
+							resolve(true);
+						}
+					});
+				}
+
+				this.update = function(i, nmap){
+					self.layerList = self.layerList.map(function(it, index){
+						if(i != undefined && nmap != undefined)
+							if(i == index)
+								return nmap(it, index);
+							else
+								return it;
+						else
+							return it;
+					});
+					self.drawLayers();
+				}
+
+				this.pop = function(layer){
+					self.layerList = self.layerList.filter(function(it){ return it['_id'] != layer['_id'];});
+					self.drawLayers();
+					self.scheme.layers = self.layerList;
+				}
+
+
+
+				this.scheme =  {
+					layers:     self.layerList,
+					open:       self.open,
+					push:       self.addLayer,
+					getConfig:  function(){ return self.config;},
+					clear:      self.clearLayers,
+					draw:       self.drawLayers,
+					update:     self.update,
+					pop:        self.pop
+				}
+				return this.scheme;
+			};
+		}]);
+		
+
+	})();
+	(function(){
+
+		'use strict';
+
+		angular.module('app.canva')
+		.factory('imageLayer', ['layerModel','$q', function(layerModel,$q){
+			return function (url, x1, y1){
+				var self = this;
+					this.img = document.createElement('IMG');
+
+
+
+				this.writeImage = function(ctx){
+					return $q(function(resolve){
+						self.img = new Image();
+						self.img.crossOrigin = "Anonymous";
+						self.img.src = self.layer.cords.url;
+						self.img.onload = function(){
+							ctx.drawImage(self.img, self.layer.cords.x1 || 0, self.layer.cords.y1 || 0);
+							resolve(true);
+						}
+					});
+				}
+				//http://static.tvtropes.org/pmwiki/pub/images/logo_autobot.png
+
+				this.layer = new layerModel({
+					name:      'Image layer',
+					type:      'imageLayer',
+					imageSize: function(){ return { width: self.img.width, height: self.img.height };},
+					cords:{
+						url: url,
+						x1:  x1,
+						y1:  y1
+					}
+				},self.writeImage);
+
+
+				return this.layer;
+			};
+		}]);
+		
+
+	})();	
+	(function(){
+
+		'use strict';
+
+		angular.module('app.canva')
+		.directive('imageEditor', [function(){
+			
+			return {
+				// name: '',
+				// priority: 1,
+				// terminal: true,
+				scope: {model:'=',id:'='}, // {} = isolate, true = child, false/undefined = no change
+				// controller: function($scope, $element, $attrs, $transclude) {},
+				// require: 'ngModel', // Array = multiple requires, ? = optional, ^ = check parent elements
+				// restrict: 'A', // E = Element, A = Attribute, C = Class, M = Comment
+				template: ''+
+					'<div class="panel panel-default m-sm">'+
+						'<div class="panel-heading">Image Preferences</div>'+
+						'<div class="panel-body">'+
+							'<div class="btn btn-default" ng-click="centerHorizontalImage()">center h</div>'+
+							'<div class="btn btn-default" ng-click="centerVerticallImage()">center v</div>'+
+							'<div class="form-group">'+
+								'<label for="">Image url</label>'+
+								'<input ng-model="model.layers[id].cords.url" type="text" name="" id="input" class="form-control" value="" required="required" pattern="" title="">'+
+							'</div>'+
+							'<div class="form-group">'+
+								'<label for="">X position</label>'+
+								'<input ng-model="model.layers[id].cords.x1" type="number" name="" id="input" class="form-control" value="" required="required" pattern="" title="">'+
+							'</div>'+
+							'<div class="form-group">'+
+								'<label for="">Y position</label>'+
+								'<input ng-model="model.layers[id].cords.y1" type="number" name="" id="input" class="form-control" value="" required="required" pattern="" title="">'+
+							'</div>'+
+						'</div>'+
+					'</div>'+
+				'',
+				// templateUrl: '',
+				// replace: true,
+				// transclude: true,
+				// compile: function(tElement, tAttrs, function transclude(function(scope, cloneLinkingFn){ return function linking(scope, elm, attrs){}})),
+				link: function($scope, iElm, iAttrs, controller) {
+					$scope.$watch('model.layers', function(n){
+						if(n){
+							$scope.model.update($scope.id,function(it, index){
+								return n[$scope.id];
+							});
+						}
+					}, true);
+
+					$scope.centerHorizontalImage = function(){
+						var config = $scope.model.getConfig(),
+							iz     = $scope.model.layers[$scope.id].imageSize(),
+							center = eval((config.width/2) - (iz.width/2));
+							$scope.model.layers[$scope.id].cords.x1 = center;
+					}
+
+					$scope.centerVerticallImage = function(){
+						var config = $scope.model.getConfig(),
+							iz     = $scope.model.layers[$scope.id].imageSize(),
+							center = eval((config.height/2) - (iz.height/2));
+							$scope.model.layers[$scope.id].cords.y1 = center;
+					}
+				}
+			};
+		}]);;
+		
+
+	})();
+	(function(){
+
+		'use strict';
+
+		angular.module('app.canva')
+		.directive('layerEditor', [function(){
+			
+			return {
+				// name: '',
+				// priority: 1,
+				// terminal: true,
+				scope: {model:'='}, // {} = isolate, true = child, false/undefined = no change
+				// controller: function($scope, $element, $attrs, $transclude) {},
+				// require: 'ngModel', // Array = multiple requires, ? = optional, ^ = check parent elements
+				// restrict: 'A', // E = Element, A = Attribute, C = Class, M = Comment
+				template: ''+
+					'<div>'+
+						'<image-editor model="model" id="preferences.id" ng-if="preferences.type==\'imageLayer\'"></image-editor>'+
+					'</div>'+
+				'',
+				// templateUrl: '',
+				// replace: true,
+				// transclude: true,
+				// compile: function(tElement, tAttrs, function transclude(function(scope, cloneLinkingFn){ return function linking(scope, elm, attrs){}})),
+				link: function($scope, iElm, iAttrs, controller) {
+					$scope.preferences = {};
+
+					$scope.$watch('model.layers',function(n){
+						if(n){
+							var selected = n.filter(function(it){ return it['selected'];});
+							if(selected[0])
+								$scope.loadSelected(selected[0]['_id']);
+							else
+								$scope.preferences = {};
+						}
+					},true);
+
+
+					$scope.loadSelected = function(id){
+						$scope.preferences.type = angular.copy($scope.model.layers[id].type);
+						$scope.preferences.id   = angular.copy(id);
+					}
+				}
+			};
+		}]);;
+		
+
+	})();
+	(function(){
+
+		'use strict';
+
+		angular.module('app.canva')
+		.factory('layerModel', ['$q',function($q){
+			return function (params, write){
+				var self = this;
+					this.ctx = null;
+
+				this.setContext = function(ctx){
+					self.ctx = ctx;
+				};
+
+				this.actionWrite = write || function(){};
+
+				this.write = function(){
+					return $q(function(resolve, reject){
+						if(self.ctx != null && self.ctx != undefined)
+							self.actionWrite(self.ctx)
+							.then(function(){
+								resolve(true);
+							});
+					})
+				}
+
+				this.scheme            = params || {};
+				this.scheme['type']    = !this.scheme['type']?'layer':this.scheme['type'];
+				this.scheme['_setCtx'] = this.setContext;
+				this.scheme['_draw']   = this.write;
+
+
+				return this.scheme;
+			};
+		}]);
+		
+
+	})();
+	(function(){
+
+		'use strict';
+
+		angular.module('app.canva')
+		.directive('layersList', [function(){
+			
+			return {
+				// name: '',
+				// priority: 1,
+				// terminal: true,
+				scope: {model:'='}, // {} = isolate, true = child, false/undefined = no change
+				// controller: function($scope, $element, $attrs, $transclude) {},
+				// require: 'ngModel', // Array = multiple requires, ? = optional, ^ = check parent elements
+				// restrict: 'A', // E = Element, A = Attribute, C = Class, M = Comment
+				template: ''+
+					'<div class="panel panel-default m-sm">'+
+						'<div class="panel-heading">'+
+							'<div class="btn btn-xs btn-default pull-right"><em class="fa fa-edit"></em></div>'+
+							'Layers'+
+						'</div>'+
+						'<ul class="list-group m-sm">'+
+							'<a ng-click="selectLayer(l,$event)" ng-class="{\'active\':l.selected}" ng-dblclick="editableOn(l,$event)" class="list-group-item list-group-item-success" ng-repeat="l in model.layers track by l._id">'+
+								'<div class="pull-right">'+
+									'<div class="btn btn-xs btn-default ml-sm" ng-if="$index!=0">'+
+										'<div class="fa fa-angle-up"></div>'+
+									'</div>'+
+									'<div class="btn btn-xs btn-default ml-sm" ng-if="!$last">'+
+										'<div class="fa fa-angle-down"></div>'+
+									'</div>'+
+									'<div class="btn btn-xs btn-default ml-sm" ng-click="deleteLayer(l);"  >'+
+										'<div class="fa fa-trash"></div>'+
+									'</div>'+
+								'</div>'+
+								'<span class="ph-sm" ng-keydown="onWrite(l,$event)" contenteditable="{{l.editable || false}}" ng-class="{\'bg-info text-dark\':l.editable}" ng-blur="editableOn(l,$event)">{{l.name}}</span>'+
+							'</a>'+
+						'</ul>'+
+					'</div>'+
+				'',
+				// templateUrl: '',
+				// replace: true,
+				// transclude: true,
+				// compile: function(tElement, tAttrs, function transclude(function(scope, cloneLinkingFn){ return function linking(scope, elm, attrs){}})),
+				link: function($scope, iElm, iAttrs, controller) {
+
+					$scope.selectLayer = function(l, event) {
+						if(event.target.nodeName == "A" || event.target.nodeName == "SPAN")
+							$scope.model.layers = $scope.model.layers.map(function(it){ it['selected'] = it['_id'] == l['_id']; return it;});
+					};
+
+					$scope.deleteLayer = function(l){
+						$scope.model.layers = $scope.model.layers.map(function(it){ it['selected'] = false; return it;});
+						setTimeout(function(){
+							$scope.$apply(function(){
+								$scope.model.pop(l);
+							});
+						},10);
+					}
+
+					$scope.editableOn = function(l,r) {
+ 						if(!l.editable)
+							l['editable'] = true;
+						else
+							l['editable'] = !l['editable'];
+						if(l['editable'] && r != undefined && r.type == "dblclick" && r.target.nodeName == "SPAN"){
+							var node = r.target;
+								node.focus();
+						}else if(r != undefined && r.type == "blur" && r.target.nodeName == "SPAN"){
+							var node = r.target;
+								l.name = node.textContent;
+						}
+					};
+
+					$scope.onWrite = function(l,event){
+						if(event.which == 13){
+				            setTimeout(function(){
+				            	l['editable'] = false;
+				            },10);
+				            var node      = event.target;
+				            	node.blur();
+							event.preventDefault(); // Doesn't work at all
+				            window.stop(); // Works in all browsers but IE    
+				            document.execCommand("Stop"); // Works in IE
+						}
+					}
+				}
+			};
+		}]);;
+		
+
+	})();	
+	(function(){
+
+		'use strict';
+
+		angular.module('app.canva')
+		.factory('lineLayer', ['layerModel','$q', function(layerModel,$q){
+			return function(x1, x2, y1, y2){
+				var self = this;
+
+				this.writeLine = function(ctx){
+					return $q(function(resolve){
+						ctx.moveTo(x1 || 0, y1 || 0);
+						ctx.lineTo(x2 || 0, y2 || 0);
+						ctx.stroke();
+						resolve(true);
+					});
+				}
+
+
+
+				this.layer = new layerModel({name:'line layer',type:'lineLayer'},this.writeLine);
+
+
+				return this.layer;
+			};
+		}]);
+		
+
+	})();
+	(function(){
+
+		'use strict';
+
+		angular.module('app.canva')
+		.factory('rectLayer', ['layerModel','$q', function(layerModel,$q){
+			return function(x1, x2, y1, y2, colorsList){
+				var self = this;
+
+				this.writeRect = function(ctx){
+					return $q(function(resolve){
+						var grd = ctx.createLinearGradient(x1,0,x2,0),
+							colors = Array.isArray(colorsList)?colorsList:['#000000'];
+						for(var i in colors)
+							grd.addColorStop(i,colors[i]);
+						ctx.fillStyle = grd;
+						ctx.fillRect(x1,y1,x2,y2);
+						resolve();
+					});
+				}
+
+
+
+				this.layer = new layerModel({name:'rect layer',type:'rectLayer'},this.writeRect);
+
+
+				return this.layer;
+			};
+		}]);
+		
+
+	})();
 (function() {
     'use strict';
 
@@ -1323,89 +1857,6 @@
 		
 
 	})();
-(function(){
-
-	'use strict';
-
-	angular.module('app.pages')
-	.controller('LoginFormController', ['$scope','$state','oAuth', function($scope,$state,oAuth){
-		var vm = this;
-
-		activate();
-
-		////////////////
-
-		function activate() {
-		  // bind here all data from the form
-		  vm.account = {};
-		  // place the message if something goes wrong
-		  vm.authMsg = '';
-
-		  vm.login = function() {
-		    vm.authMsg = '';
-		    if(vm.loginForm.$valid) {
-		    	oAuth
-		      	.login(vm.account.email,vm.account.password)
-		      	.then(
-		      		function(data){
-		      			console.log(data);
-		      		},
-		      		function(error){
-		      			console.log(error);
-		      			vm.authMsg = error;
-		      		}
-	      		);
-		    } else {
-		      vm.loginForm.account_email.$dirty = true;
-		      vm.loginForm.account_password.$dirty = true;
-		    }
-		  };
-		}
-	}])
-
-})();
-
-(function(){
-
-	'use strict';
-
-	angular.module('app.pages')
-	.controller('RegisterFormController', ['$state','oAuth', function($state,oAuth){
-		var vm = this;
-
-		activate();
-
-		////////////////
-
-		function activate() {
-		  // bind here all data from the form
-		  vm.account = {};
-		  // place the message if something goes wrong
-		  vm.authMsg = '';
-		    
-		  vm.register = function() {
-		    vm.authMsg = '';
-		    if(vm.registerForm.$valid) {
-		    	oAuth
-		    	.register(vm.account.email,vm.account.password)
-		    	.then(
-		    		function(d){
-		    			console.log(d,'success');
-		    		},function(error){
-		    			console.log(error);
-		    			vm.authMsg = error;
-		    		}
-	      		)
-		    } else {
-		      vm.registerForm.account_email['$dirty'] = true;
-		      vm.registerForm.account_password['$dirty'] = true;
-		    }
-		  };
-		}
-	}]);
-
-})();
-
 (function() {
     'use strict';
 
@@ -1732,6 +2183,89 @@
     }
 })();
 
+(function(){
+
+	'use strict';
+
+	angular.module('app.pages')
+	.controller('LoginFormController', ['$scope','$state','oAuth', function($scope,$state,oAuth){
+		var vm = this;
+
+		activate();
+
+		////////////////
+
+		function activate() {
+		  // bind here all data from the form
+		  vm.account = {};
+		  // place the message if something goes wrong
+		  vm.authMsg = '';
+
+		  vm.login = function() {
+		    vm.authMsg = '';
+		    if(vm.loginForm.$valid) {
+		    	oAuth
+		      	.login(vm.account.email,vm.account.password)
+		      	.then(
+		      		function(data){
+		      			console.log(data);
+		      		},
+		      		function(error){
+		      			console.log(error);
+		      			vm.authMsg = error;
+		      		}
+	      		);
+		    } else {
+		      vm.loginForm.account_email.$dirty = true;
+		      vm.loginForm.account_password.$dirty = true;
+		    }
+		  };
+		}
+	}])
+
+})();
+
+(function(){
+
+	'use strict';
+
+	angular.module('app.pages')
+	.controller('RegisterFormController', ['$state','oAuth', function($state,oAuth){
+		var vm = this;
+
+		activate();
+
+		////////////////
+
+		function activate() {
+		  // bind here all data from the form
+		  vm.account = {};
+		  // place the message if something goes wrong
+		  vm.authMsg = '';
+		    
+		  vm.register = function() {
+		    vm.authMsg = '';
+		    if(vm.registerForm.$valid) {
+		    	oAuth
+		    	.register(vm.account.email,vm.account.password)
+		    	.then(
+		    		function(d){
+		    			console.log(d,'success');
+		    		},function(error){
+		    			console.log(error);
+		    			vm.authMsg = error;
+		    		}
+	      		)
+		    } else {
+		      vm.registerForm.account_email['$dirty'] = true;
+		      vm.registerForm.account_password['$dirty'] = true;
+		    }
+		  };
+		}
+	}]);
+
+})();
+
 (function() {
     'use strict';
 
@@ -1950,6 +2484,12 @@
                 });
               }]
           }) 
+          .state('canva', {
+              url:          '/canva',
+              title:        'Canva editor',
+              resolve: helper.resolveFor('modernizr', 'icons'),
+              template:  '<canva-editor></canva-editor>'
+          })
           .state('app.dash', {
               url:          '/dash',
               title:        'Single View',
@@ -1979,6 +2519,29 @@
               url:         '/submenu',
               title:       'Submenu',
               templateUrl: helper.basepath('submenu.html')
+          })
+
+
+          // ROUTES OF PAGES oAuth
+
+          .state('privatePage', {
+              url: '/private-page',
+              abstract: true,
+              templateUrl: helper.basepath('page.html'),
+              resolve: helper.resolveFor('modernizr', 'icons'),
+              controller:["oAuth", "$state", function(oAuth,$state){
+                oAuth.on('onAuthStateChanged',function(state){
+                  if(!state)
+                    $state.go('page.login');
+                });
+              }]
+
+          })
+          .state('privatePage.print', {
+              url: '/print/:id',
+              params:{id:0},
+              title: 'Print Page',
+              templateUrl: 'app/pages/print.html'
           })
 
 
@@ -2013,6 +2576,302 @@
 
 })();
 
+
+(function(){
+
+	'use strict';
+
+	angular.module('app.sections')
+	.controller('userSettingsCtrl', ['$scope','oAuth', function($scope,oAuth){
+		
+		$scope.logout = function(){
+			oAuth.signOut();
+			$scope.app.offsidebarOpen = !$scope.app.offsidebarOpen;
+		};
+
+		
+	}]);
+
+})();
+(function(){
+
+	'use strict';
+
+	angular.module('app.sections')
+	.controller('dashBoardCtrl', ['$uibModal','$scope', '$entidades', 'entidad', function($uibModal, $scope, $entidades, entidad){
+		
+	}]);
+
+})();
+
+(function(){
+
+	'use strict';
+
+	angular.module('app.sections')
+	.controller('editionEntityModalCtrl', ['entidad','$entidades','$scope','ent','$uibModalInstance', function(entidad,$entidades,$scope,ent,$uibModalInstance){
+		
+		$scope.entity  = new entidad(ent.eid.value, ent.referencia.value, ent.nombre.value, ent.apellido.value, ent.telefono.value, ent.direccion.value, ent.email.value);
+		$scope.keys    = angular.copy(ent.keys);
+
+		$scope.close = function(){
+			//console.log(angular.copy($scope.entity))
+			$uibModalInstance.close($scope.entity);
+		};
+
+		$scope.save = function(){
+			var promise;
+			setTimeout(function(){
+				$scope.$apply(function(){
+					var data    = $scope.entity.get();
+					if(!$scope.entity.error){
+						if($scope.entity.eid.get() === '')
+							promise = $entidades.push(data);
+						else
+							promise = $entidades.update($scope.entity.eid.get(),data);
+						promise
+						.then(
+							function(eid){
+								if($scope.entity.eid.get() === '')
+									$scope.entity.set('eid',eid);
+								$scope.close();
+							},
+							function(error){
+								console.log(error);
+							}
+						)
+					}else{
+						//console.log($scope.entity.error, $scope.entity);
+					}
+				});
+			},100);
+		}
+
+	}]);
+
+})();
+
+(function(){
+
+	'use strict';
+
+	angular.module('app.sections')
+	.controller('entityListCtrl', ['$uibModal','$scope', '$entidades', 'entidad', function($uibModal, $scope, $entidades, entidad){
+		$scope.list = [];
+		$scope.cols = [];
+
+		$entidades.get(function(list){
+			$scope.list = list;
+			if(Array.isArray($scope.list) && $scope.list[0] != undefined){
+				$scope.cols = $scope.list[0].get_headers();
+			}
+		});
+
+		$scope.new = function(){
+			$scope.oepnModal();
+		};
+
+		$scope.edit = function(ent){
+			$scope.oepnModal(ent);
+		};
+
+		$scope.oepnModal = function(ent){
+			ent = ent == undefined?new entidad():ent;
+			var modalInstance = $uibModal.open({
+				animation: true,
+				templateUrl: 'app/views/editionEntityModal.html',
+				controller: 'editionEntityModalCtrl',
+				backdrop: 'static',
+				resolve: {
+			     	ent: function () {
+			     		return ent;
+			     	}
+			    }
+			});
+		}
+	}])
+
+})();
+
+(function(){
+
+	'use strict';
+
+	angular.module('app.sections')
+	.controller('orderFormCtrl', ['$scope','order','$orders','ficha','$fichas','$uibModal','$state','$entidades','entidad', function($scope,order,$orders,ficha,$fichas,$uibModal,$state,$entidades,entidad){
+		$scope.entidadFilter = new entidad();
+		if($state.params.order_key == "0")
+			$scope.ficha = new ficha();
+		$scope.allOrders = [];
+		$scope.ordersList = [];
+
+
+		$scope.$watch('allOrders',function(n){
+			if(n!= undefined){
+				$scope.filterOrderList(n);
+			}
+		},true);
+
+
+		$scope.filterOrderList = function(list){
+			$scope.ordersList = list.filter(function(it){
+				return it.fid.value == $scope.ficha.fid.value;
+			});
+		};
+
+		$orders.get(function(list){
+			$scope.allOrders = list;
+		});
+
+
+		$entidades.get(function(entidades){
+			setTimeout(function(){
+				$scope.$apply(function(){
+					$scope.entidades = entidades;
+				});
+			},1);
+		});
+		
+		$scope.saveFicha = function(){
+			$scope.ficha.publish($scope.ordersList)
+			.then(
+				function(idPrint){
+					console.log(idPrint,'on save ficha')
+				},
+				function(err){
+					console.log(err,'error on save ficha');
+				}
+			)
+		}
+
+		$scope.selectEntity = function(){
+			if($scope.entidadFilter.eid.get() !== ''){
+				$scope.ficha.entidad = angular.copy($scope.entidadFilter);
+				var nf = new ficha($scope.ficha.entidad.eid.get());
+				$fichas.push(nf)
+				.then(
+					function(ficha){
+						$scope.ficha.fid.value = ficha.fid.value;
+						$scope.formOrder       = new order(ficha.fid.value);
+
+						$scope.filterOrderList($scope.allOrders);
+					}
+				)
+			}else{
+				console.log('No se a seleccionado la entidad');
+			}
+		};
+
+		$scope.setSelection = function($item){
+			$scope.entidadFilter = $item;
+		};
+
+
+		$scope.getEntitys = function(value){
+			console.log(value,$scope.entidades);
+			return $scope.entidades.filter(function(it){
+				return it.nombre.value.indexOf(value) !=-1;
+			});
+		};
+
+
+		$scope.createEntity = function(ent){
+			ent = ent == undefined?new entidad():ent;
+			var modalInstance = $uibModal.open({
+				animation: true,
+				templateUrl: 'app/views/editionEntityModal.html',
+				controller:  'editionEntityModalCtrl',
+				backdrop:    'static',
+				resolve: {
+			     	ent: function () {
+			     		return ent;
+			     	}
+			    }
+			});
+
+			modalInstance.result
+			.then(
+				function(newEntity){
+					if(newEntity.eid != undefined && newEntity.eid.get() != ''){
+						console.log(newEntity,'if a new entity')
+						$scope.entidadFilter = newEntity;
+					}
+				}
+			);
+		}
+
+	}]);
+
+})();
+
+(function(){
+
+	'use strict';
+
+	angular.module('app.sections')
+	.controller('orderListCtrl', ['$scope', function($scope){
+		
+	}])
+
+})();
+
+(function() {
+    'use strict';
+
+    angular
+        .module('app.settings')
+        .run(settingsRun);
+
+    settingsRun.$inject = ['$rootScope', '$localStorage'];
+
+    function settingsRun($rootScope, $localStorage){
+
+      // Global Settings
+      // -----------------------------------
+      $rootScope.app = {
+        name: 'Angle',
+        description: 'Angular Bootstrap Admin Template',
+        year: ((new Date()).getFullYear()),
+        layout: {
+          isFixed: true,
+          isCollapsed: false,
+          isBoxed: false,
+          isRTL: false,
+          horizontal: false,
+          isFloat: false,
+          asideHover: false,
+          theme: null,
+          asideScrollbar: false
+        },
+        useFullLayout: false,
+        hiddenFooter: false,
+        offsidebarOpen: false,
+        asideToggled: false,
+        viewAnimation: 'ng-fadeInUp'
+      };
+
+      // Setup the layout mode
+      $rootScope.app.layout.horizontal = ( $rootScope.$stateParams.layout === 'app-h') ;
+
+      // Restore layout settings [*** UNCOMMENT TO ENABLE ***]
+      // if( angular.isDefined($localStorage.layout) )
+      //   $rootScope.app.layout = $localStorage.layout;
+      // else
+      //   $localStorage.layout = $rootScope.app.layout;
+      //
+      // $rootScope.$watch('app.layout', function () {
+      //   $localStorage.layout = $rootScope.app.layout;
+      // }, true);
+
+      // Close submenu when sidebar change from collapsed to normal
+      $rootScope.$watch('app.layout.isCollapsed', function(newValue) {
+        if( newValue === false )
+          $rootScope.$broadcast('closeSidebarMenu');
+      });
+
+    }
+
+})();
 
 /**=========================================================
  * Module: sidebar-menu.js
@@ -2861,302 +3720,6 @@
 
         };
     }
-})();
-
-(function() {
-    'use strict';
-
-    angular
-        .module('app.settings')
-        .run(settingsRun);
-
-    settingsRun.$inject = ['$rootScope', '$localStorage'];
-
-    function settingsRun($rootScope, $localStorage){
-
-      // Global Settings
-      // -----------------------------------
-      $rootScope.app = {
-        name: 'Angle',
-        description: 'Angular Bootstrap Admin Template',
-        year: ((new Date()).getFullYear()),
-        layout: {
-          isFixed: true,
-          isCollapsed: false,
-          isBoxed: false,
-          isRTL: false,
-          horizontal: false,
-          isFloat: false,
-          asideHover: false,
-          theme: null,
-          asideScrollbar: false
-        },
-        useFullLayout: false,
-        hiddenFooter: false,
-        offsidebarOpen: false,
-        asideToggled: false,
-        viewAnimation: 'ng-fadeInUp'
-      };
-
-      // Setup the layout mode
-      $rootScope.app.layout.horizontal = ( $rootScope.$stateParams.layout === 'app-h') ;
-
-      // Restore layout settings [*** UNCOMMENT TO ENABLE ***]
-      // if( angular.isDefined($localStorage.layout) )
-      //   $rootScope.app.layout = $localStorage.layout;
-      // else
-      //   $localStorage.layout = $rootScope.app.layout;
-      //
-      // $rootScope.$watch('app.layout', function () {
-      //   $localStorage.layout = $rootScope.app.layout;
-      // }, true);
-
-      // Close submenu when sidebar change from collapsed to normal
-      $rootScope.$watch('app.layout.isCollapsed', function(newValue) {
-        if( newValue === false )
-          $rootScope.$broadcast('closeSidebarMenu');
-      });
-
-    }
-
-})();
-
-(function(){
-
-	'use strict';
-
-	angular.module('app.sections')
-	.controller('userSettingsCtrl', ['$scope','oAuth', function($scope,oAuth){
-		
-		$scope.logout = function(){
-			oAuth.signOut();
-			$scope.app.offsidebarOpen = !$scope.app.offsidebarOpen;
-		};
-
-		
-	}]);
-
-})();
-(function(){
-
-	'use strict';
-
-	angular.module('app.sections')
-	.controller('dashBoardCtrl', ['$uibModal','$scope', '$entidades', 'entidad', function($uibModal, $scope, $entidades, entidad){
-		
-	}]);
-
-})();
-
-(function(){
-
-	'use strict';
-
-	angular.module('app.sections')
-	.controller('editionEntityModalCtrl', ['entidad','$entidades','$scope','ent','$uibModalInstance', function(entidad,$entidades,$scope,ent,$uibModalInstance){
-		
-		$scope.entity  = new entidad(ent.eid.value, ent.referencia.value, ent.nombre.value, ent.apellido.value, ent.telefono.value, ent.direccion.value, ent.email.value);
-		$scope.keys    = angular.copy(ent.keys);
-
-		$scope.close = function(){
-			//console.log(angular.copy($scope.entity))
-			$uibModalInstance.close($scope.entity);
-		};
-
-		$scope.save = function(){
-			var promise;
-			setTimeout(function(){
-				$scope.$apply(function(){
-					var data    = $scope.entity.get();
-					if(!$scope.entity.error){
-						if($scope.entity.eid.get() === '')
-							promise = $entidades.push(data);
-						else
-							promise = $entidades.update($scope.entity.eid.get(),data);
-						promise
-						.then(
-							function(eid){
-								if($scope.entity.eid.get() === '')
-									$scope.entity.set('eid',eid);
-								$scope.close();
-							},
-							function(error){
-								console.log(error);
-							}
-						)
-					}else{
-						//console.log($scope.entity.error, $scope.entity);
-					}
-				});
-			},100);
-		}
-
-	}]);
-
-})();
-
-(function(){
-
-	'use strict';
-
-	angular.module('app.sections')
-	.controller('entityListCtrl', ['$uibModal','$scope', '$entidades', 'entidad', function($uibModal, $scope, $entidades, entidad){
-		$scope.list = [];
-		$scope.cols = [];
-
-		$entidades.get(function(list){
-			$scope.list = list;
-			if(Array.isArray($scope.list) && $scope.list[0] != undefined){
-				$scope.cols = $scope.list[0].get_headers();
-			}
-		});
-
-		$scope.new = function(){
-			$scope.oepnModal();
-		};
-
-		$scope.edit = function(ent){
-			$scope.oepnModal(ent);
-		};
-
-		$scope.oepnModal = function(ent){
-			ent = ent == undefined?new entidad():ent;
-			var modalInstance = $uibModal.open({
-				animation: true,
-				templateUrl: 'app/views/editionEntityModal.html',
-				controller: 'editionEntityModalCtrl',
-				backdrop: 'static',
-				resolve: {
-			     	ent: function () {
-			     		return ent;
-			     	}
-			    }
-			});
-		}
-	}])
-
-})();
-
-(function(){
-
-	'use strict';
-
-	angular.module('app.sections')
-	.controller('orderFormCtrl', ['$scope','order','$orders','ficha','$fichas','$uibModal','$state','$entidades','entidad', function($scope,order,$orders,ficha,$fichas,$uibModal,$state,$entidades,entidad){
-		$scope.entidadFilter = new entidad();
-		if($state.params.order_key == "0")
-			$scope.ficha = new ficha();
-		$scope.allOrders = [];
-		$scope.ordersList = [];
-
-
-		$scope.$watch('allOrders',function(n){
-			if(n!= undefined){
-				$scope.filterOrderList(n);
-			}
-		},true);
-
-
-		$scope.filterOrderList = function(list){
-			$scope.ordersList = list.filter(function(it){
-				return it.fid.value == $scope.ficha.fid.value;
-			});
-		};
-
-		$orders.get(function(list){
-			$scope.allOrders = list;
-		});
-
-
-		$entidades.get(function(entidades){
-			setTimeout(function(){
-				$scope.$apply(function(){
-					$scope.entidades = entidades;
-				});
-			},1);
-		});
-		
-		$scope.saveFicha = function(){
-			$scope.ficha.publish($scope.ordersList)
-			.then(
-				function(idPrint){
-					console.log(idPrint,'on save ficha')
-				},
-				function(err){
-					console.log(err,'error on save ficha');
-				}
-			)
-		}
-
-		$scope.selectEntity = function(){
-			if($scope.entidadFilter.eid.get() !== ''){
-				$scope.ficha.entidad = angular.copy($scope.entidadFilter);
-				var nf = new ficha($scope.ficha.entidad.eid.get());
-				$fichas.push(nf)
-				.then(
-					function(ficha){
-						$scope.ficha.fid.value = ficha.fid.value;
-						$scope.formOrder       = new order(ficha.fid.value);
-
-						$scope.filterOrderList($scope.allOrders);
-					}
-				)
-			}else{
-				console.log('No se a seleccionado la entidad');
-			}
-		};
-
-		$scope.setSelection = function($item){
-			$scope.entidadFilter = $item;
-		};
-
-
-		$scope.getEntitys = function(value){
-			console.log(value,$scope.entidades);
-			return $scope.entidades.filter(function(it){
-				return it.nombre.value.indexOf(value) !=-1;
-			});
-		};
-
-
-		$scope.createEntity = function(ent){
-			ent = ent == undefined?new entidad():ent;
-			var modalInstance = $uibModal.open({
-				animation: true,
-				templateUrl: 'app/views/editionEntityModal.html',
-				controller:  'editionEntityModalCtrl',
-				backdrop:    'static',
-				resolve: {
-			     	ent: function () {
-			     		return ent;
-			     	}
-			    }
-			});
-
-			modalInstance.result
-			.then(
-				function(newEntity){
-					if(newEntity.eid != undefined && newEntity.eid.get() != ''){
-						console.log(newEntity,'if a new entity')
-						$scope.entidadFilter = newEntity;
-					}
-				}
-			);
-		}
-
-	}]);
-
-})();
-
-(function(){
-
-	'use strict';
-
-	angular.module('app.sections')
-	.controller('orderListCtrl', ['$scope', function($scope){
-		
-	}])
-
 })();
 
 (function() {

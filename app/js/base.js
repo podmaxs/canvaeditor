@@ -48581,7 +48581,7 @@ angular.module('ui.utils', [
 /*!
  * angular-ui-mask
  * https://github.com/angular-ui/ui-mask
- * Version: 1.6.0 - 2015-11-11T01:49:32.318Z
+ * Version: 1.8.7 - 2016-07-26T15:59:07.992Z
  * License: MIT
  */
 
@@ -48599,9 +48599,47 @@ angular.module('ui.mask', [])
                 '*': /[a-zA-Z0-9]/
             },
             clearOnBlur: true,
-            eventsToHandle: ['input', 'keyup', 'click', 'focus']
+            clearOnBlurPlaceholder: false,
+            escChar: '\\',
+            eventsToHandle: ['input', 'keyup', 'click', 'focus'],
+            addDefaultPlaceholder: true,
+            allowInvalidValue: false
         })
-        .directive('uiMask', ['uiMaskConfig', function(maskConfig) {
+        .provider('uiMask.Config', function() {
+            var options = {};
+
+            this.maskDefinitions = function(maskDefinitions) {
+                return options.maskDefinitions = maskDefinitions;
+            };
+            this.clearOnBlur = function(clearOnBlur) {
+                return options.clearOnBlur = clearOnBlur;
+            };
+            this.clearOnBlurPlaceholder = function(clearOnBlurPlaceholder) {
+                return options.clearOnBlurPlaceholder = clearOnBlurPlaceholder;
+            };
+            this.eventsToHandle = function(eventsToHandle) {
+                return options.eventsToHandle = eventsToHandle;
+            };
+            this.addDefaultPlaceholder = function(addDefaultPlaceholder) {
+                return options.addDefaultPlaceholder = addDefaultPlaceholder;
+            };
+            this.allowInvalidValue = function(allowInvalidValue) {
+                return options.allowInvalidValue = allowInvalidValue;
+            };
+            this.$get = ['uiMaskConfig', function(uiMaskConfig) {
+                var tempOptions = uiMaskConfig;
+                for(var prop in options) {
+                    if (angular.isObject(options[prop]) && !angular.isArray(options[prop])) {
+                        angular.extend(tempOptions[prop], options[prop]);
+                    } else {
+                        tempOptions[prop] = options[prop];
+                    }
+                }
+
+                return tempOptions;
+            }];
+        })
+        .directive('uiMask', ['uiMask.Config', function(maskConfig) {
                 function isFocused (elem) {
                   return elem === document.activeElement && (!document.hasFocus || document.hasFocus()) && !!(elem.type || elem.href || ~elem.tabIndex);
                 }
@@ -48611,7 +48649,7 @@ angular.module('ui.mask', [])
                     require: 'ngModel',
                     restrict: 'A',
                     compile: function uiMaskCompilingFunction() {
-                        var options = maskConfig;
+                        var options = angular.copy(maskConfig);
 
                         return function uiMaskLinkingFunction(scope, iElement, iAttrs, controller) {
                             var maskProcessed = false, eventsBound = false,
@@ -48623,7 +48661,19 @@ angular.module('ui.mask', [])
                                     originalPlaceholder = iAttrs.placeholder,
                                     originalMaxlength = iAttrs.maxlength,
                                     // Vars used exclusively in eventHandler()
-                                    oldValue, oldValueUnmasked, oldCaretPosition, oldSelectionLength;
+                                    oldValue, oldValueUnmasked, oldCaretPosition, oldSelectionLength,
+                                    // Used for communicating if a backspace operation should be allowed between
+                                    // keydownHandler and eventHandler
+                                    preventBackspace;
+
+                            var originalIsEmpty = controller.$isEmpty;
+                            controller.$isEmpty = function(value) {
+                                if (maskProcessed) {
+                                    return originalIsEmpty(unmaskValue(value || ''));
+                                } else {
+                                    return originalIsEmpty(value);
+                                }
+                            };
 
                             function initialize(maskAttr) {
                                 if (!angular.isDefined(maskAttr)) {
@@ -48646,7 +48696,11 @@ angular.module('ui.mask', [])
                                 maskPlaceholder = placeholderAttr;
 
                                 // If the mask is processed, then we need to update the value
-                                if (maskProcessed) {
+                                // but don't set the value if there is nothing entered into the element
+                                // and there is a placeholder attribute on the element because that
+                                // will only set the value as the blank maskPlaceholder
+                                // and override the placeholder on the element
+                                if (maskProcessed && !(iElement.val().length === 0 && angular.isDefined(iAttrs.placeholder))) {
                                     iElement.val(maskValue(unmaskValue(iElement.val())));
                                 }
                             }
@@ -48662,6 +48716,13 @@ angular.module('ui.mask', [])
                                 }
                             });
 
+                            iAttrs.$observe('allowInvalidValue', function(val) {
+                                linkOptions.allowInvalidValue = val === ''
+                                    ? true
+                                    : !!val;
+                                formatter(controller.$modelValue);
+                            });
+
                             function formatter(fromModelValue) {
                                 if (!maskProcessed) {
                                     return fromModelValue;
@@ -48669,7 +48730,13 @@ angular.module('ui.mask', [])
                                 value = unmaskValue(fromModelValue || '');
                                 isValid = validateValue(value);
                                 controller.$setValidity('mask', isValid);
-                                return isValid && value.length ? maskValue(value) : undefined;
+
+                                if (!value.length) return undefined;
+                                if (isValid || linkOptions.allowInvalidValue) {
+                                    return maskValue(value);
+                                } else {
+                                    return undefined;
+                                }
                             }
 
                             function parser(fromViewValue) {
@@ -48684,13 +48751,9 @@ angular.module('ui.mask', [])
                                 // to be out-of-sync with what the controller's $viewValue is set to.
                                 controller.$viewValue = value.length ? maskValue(value) : '';
                                 controller.$setValidity('mask', isValid);
-                                if (value === '' && iAttrs.required) {
-                                    controller.$setValidity('required', !controller.$error.required);
-                                }
-                                if (isValid) {
+
+                                if (isValid || linkOptions.allowInvalidValue) {
                                     return modelViewValue ? controller.$viewValue : value;
-                                } else {
-                                    return undefined;
                                 }
                             }
 
@@ -48732,8 +48795,8 @@ angular.module('ui.mask', [])
                                 iAttrs.$observe('uiMaskPlaceholderChar', initPlaceholderChar);
                             }
 
-                            controller.$formatters.push(formatter);
-                            controller.$parsers.push(parser);
+                            controller.$formatters.unshift(formatter);
+                            controller.$parsers.unshift(parser);
 
                             function uninitialize() {
                                 maskProcessed = false;
@@ -48763,7 +48826,7 @@ angular.module('ui.mask', [])
                                 if (iAttrs.maxlength) { // Double maxlength to allow pasting new val at end of mask
                                     iElement.attr('maxlength', maskCaretMap[maskCaretMap.length - 1] * 2);
                                 }
-                                if ( ! originalPlaceholder) {
+                                if ( ! originalPlaceholder && linkOptions.addDefaultPlaceholder) {
                                     iElement.attr('placeholder', maskPlaceholder);
                                 }
                                 var viewValue = controller.$modelValue;
@@ -48783,8 +48846,8 @@ angular.module('ui.mask', [])
                                 }
                                 iElement.bind('blur', blurHandler);
                                 iElement.bind('mousedown mouseup', mouseDownUpHandler);
+                                iElement.bind('keydown', keydownHandler);
                                 iElement.bind(linkOptions.eventsToHandle.join(' '), eventHandler);
-                                iElement.bind('paste', onPasteHandler);
                                 eventsBound = true;
                             }
 
@@ -48795,11 +48858,11 @@ angular.module('ui.mask', [])
                                 iElement.unbind('blur', blurHandler);
                                 iElement.unbind('mousedown', mouseDownUpHandler);
                                 iElement.unbind('mouseup', mouseDownUpHandler);
+                                iElement.unbind('keydown', keydownHandler);
                                 iElement.unbind('input', eventHandler);
                                 iElement.unbind('keyup', eventHandler);
                                 iElement.unbind('click', eventHandler);
                                 iElement.unbind('focus', eventHandler);
-                                iElement.unbind('paste', onPasteHandler);
                                 eventsBound = false;
                             }
 
@@ -48810,18 +48873,37 @@ angular.module('ui.mask', [])
 
                             function unmaskValue(value) {
                                 var valueUnmasked = '',
-                                        maskPatternsCopy = maskPatterns.slice();
+                                    input = iElement[0],
+                                    maskPatternsCopy = maskPatterns.slice(),
+                                    selectionStart = oldCaretPosition,
+                                    selectionEnd = selectionStart + getSelectionLength(input),
+                                    valueOffset, valueDelta, tempValue = '';
                                 // Preprocess by stripping mask components from value
                                 value = value.toString();
+                                valueOffset = 0;
+                                valueDelta = value.length - maskPlaceholder.length;
                                 angular.forEach(maskComponents, function(component) {
-                                    value = value.replace(component, '');
+                                    var position = component.position;
+                                    //Only try and replace the component if the component position is not within the selected range
+                                    //If component was in selected range then it was removed with the user input so no need to try and remove that component
+                                    if (!(position >= selectionStart && position < selectionEnd)) {
+                                        if (position >= selectionStart) {
+                                            position += valueDelta;
+                                        }
+                                        if (value.substring(position, position + component.value.length) === component.value) {
+                                            tempValue += value.slice(valueOffset, position);// + value.slice(position + component.value.length);
+                                            valueOffset = position + component.value.length;
+                                        }
+                                    }
                                 });
+                                value = tempValue + value.slice(valueOffset);
                                 angular.forEach(value.split(''), function(chr) {
                                     if (maskPatternsCopy.length && maskPatternsCopy[0].test(chr)) {
                                         valueUnmasked += chr;
                                         maskPatternsCopy.shift();
                                     }
                                 });
+
                                 return valueUnmasked;
                             }
 
@@ -48857,13 +48939,37 @@ angular.module('ui.mask', [])
                             // Generate array of mask components that will be stripped from a masked value
                             // before processing to prevent mask components from being added to the unmasked value.
                             // E.g., a mask pattern of '+7 9999' won't have the 7 bleed into the unmasked value.
-                            // If a maskable char is followed by a mask char and has a mask
-                            // char behind it, we'll split it into it's own component so if
-                            // a user is aggressively deleting in the input and a char ahead
-                            // of the maskable char gets deleted, we'll still be able to strip
-                            // it in the unmaskValue() preprocessing.
                             function getMaskComponents() {
-                                return maskPlaceholder.replace(/[_]+/g, '_').replace(/([^_]+)([a-zA-Z0-9])([^_])/g, '$1$2_$3').split('_');
+                                var maskPlaceholderChars = maskPlaceholder.split(''),
+                                        maskPlaceholderCopy, components;
+
+                                //maskCaretMap can have bad values if the input has the ui-mask attribute implemented as an obversable property, e.g. the demo page
+                                if (maskCaretMap && !isNaN(maskCaretMap[0])) {
+                                    //Instead of trying to manipulate the RegEx based on the placeholder characters
+                                    //we can simply replace the placeholder characters based on the already built
+                                    //maskCaretMap to underscores and leave the original working RegEx to get the proper
+                                    //mask components
+                                    angular.forEach(maskCaretMap, function(value) {
+                                        maskPlaceholderChars[value] = '_';
+                                    });
+                                }
+                                maskPlaceholderCopy = maskPlaceholderChars.join('');
+                                components = maskPlaceholderCopy.replace(/[_]+/g, '_').split('_');
+                                components = components.filter(function(s) {
+                                    return s !== '';
+                                });
+
+                                // need a string search offset in cases where the mask contains multiple identical components
+                                // E.g., a mask of 99.99.99-999.99
+                                var offset = 0;
+                                return components.map(function(c) {
+                                    var componentPosition = maskPlaceholderCopy.indexOf(c, offset);
+                                    offset = componentPosition + 1;
+                                    return {
+                                        value: c,
+                                        position: componentPosition
+                                    };
+                                });
                             }
 
                             function processRawMask(mask) {
@@ -48880,9 +48986,17 @@ angular.module('ui.mask', [])
                                             numberOfOptionalCharacters = 0,
                                             splitMask = mask.split('');
 
+                                    var inEscape = false;
                                     angular.forEach(splitMask, function(chr, i) {
-                                        if (linkOptions.maskDefinitions[chr]) {
-
+                                        if (inEscape) {
+                                            inEscape = false;
+                                            maskPlaceholder += chr;
+                                            characterCount++;
+                                        }
+                                        else if (linkOptions.escChar === chr) {
+                                            inEscape = true;
+                                        }
+                                        else if (linkOptions.maskDefinitions[chr]) {
                                             maskCaretMap.push(characterCount);
 
                                             maskPlaceholder += getPlaceholderChar(i - numberOfOptionalCharacters);
@@ -48911,38 +49025,61 @@ angular.module('ui.mask', [])
                                 maskComponents = getMaskComponents();
                                 maskProcessed = maskCaretMap.length > 1 ? true : false;
                             }
-                            
-                            var prevValue = iElement.val(); 
+
+                            var prevValue = iElement.val();
                             function blurHandler() {
-                                if (linkOptions.clearOnBlur) {
+                                if (linkOptions.clearOnBlur || ((linkOptions.clearOnBlurPlaceholder) && (value.length === 0) && iAttrs.placeholder)) {
                                     oldCaretPosition = 0;
                                     oldSelectionLength = 0;
                                     if (!isValid || value.length === 0) {
                                         valueMasked = '';
                                         iElement.val('');
                                         scope.$apply(function() {
-                                            //don't call $setViewValue to avoid changing $pristine state.
-                                            controller.$viewValue = '';
+                                            //only $setViewValue when not $pristine to avoid changing $pristine state.
+                                            if (!controller.$pristine) {
+                                                controller.$setViewValue('');
+                                            }
                                         });
                                     }
                                 }
                                 //Check for different value and trigger change.
+                                //Check for different value and trigger change.
                                 if (value !== prevValue) {
+                                    // #157 Fix the bug from the trigger when backspacing exactly on the first letter (emptying the field)
+                                    // and then blurring out.
+                                    // Angular uses html element and calls setViewValue(element.value.trim()), setting it to the trimmed mask
+                                    // when it should be empty
+                                    var currentVal = iElement.val();
+                                    var isTemporarilyEmpty = value === '' && currentVal && angular.isDefined(iAttrs.uiMaskPlaceholderChar) && iAttrs.uiMaskPlaceholderChar === 'space';
+                                    if(isTemporarilyEmpty) {
+                                        iElement.val('');
+                                    }
                                     triggerChangeEvent(iElement[0]);
+                                    if(isTemporarilyEmpty) {
+                                        iElement.val(currentVal);
+                                    }
                                 }
                                 prevValue = value;
                             }
-                            
+
                             function triggerChangeEvent(element) {
                                 var change;
                                 if (angular.isFunction(window.Event) && !element.fireEvent) {
                                     // modern browsers and Edge
-                                    change = new Event('change', {
-                                        view: window,
-                                        bubbles: true,
-                                        cancelable: false
-                                    });
-                                    element.dispatchEvent(change);
+                                    try {
+                                        change = new Event('change', {
+                                            view: window,
+                                            bubbles: true,
+                                            cancelable: false
+                                        });
+                                    } catch (ex) {
+                                        //this is for certain mobile browsers that have the Event object
+                                        //but don't support the Event constructor #168
+                                        change = document.createEvent('HTMLEvents');
+                                        change.initEvent('change', false, true);
+                                    } finally {
+                                        element.dispatchEvent(change);
+                                    }
                                 } else if ('createEvent' in document) {
                                     // older browsers
                                     change = document.createEvent('HTMLEvents');
@@ -48971,9 +49108,30 @@ angular.module('ui.mask', [])
                                 iElement.unbind('mouseout', mouseoutHandler);
                             }
 
-                            function onPasteHandler() {
+                            function keydownHandler(e) {
                                 /*jshint validthis: true */
-                                setCaretPosition(this, iElement.val().length);
+                                var isKeyBackspace = e.which === 8,
+                                caretPos = getCaretPosition(this) - 1 || 0, //value in keydown is pre change so bump caret position back to simulate post change
+                                isCtrlZ = e.which === 90 && e.ctrlKey; //ctrl+z pressed
+
+                                if (isKeyBackspace) {
+                                    while(caretPos >= 0) {
+                                        if (isValidCaretPosition(caretPos)) {
+                                            //re-adjust the caret position.
+                                            //Increment to account for the initial decrement to simulate post change caret position
+                                            setCaretPosition(this, caretPos + 1);
+                                            break;
+                                        }
+                                        caretPos--;
+                                    }
+                                    preventBackspace = caretPos === -1;
+                                }
+
+                                if (isCtrlZ) {
+                                    // prevent IE bug - value should be returned to initial state
+                                    iElement.val('');
+                                    e.preventDefault();
+                                }
                             }
 
                             function eventHandler(e) {
@@ -49021,7 +49179,18 @@ angular.module('ui.mask', [])
                                 oldSelectionLength = getSelectionLength(this);
 
                                 // These events don't require any action
-                                if (isSelection || (isSelected && (eventType === 'click' || eventType === 'keyup'))) {
+                                if (isSelection || (isSelected && (eventType === 'click' || eventType === 'keyup' || eventType === 'focus'))) {
+                                    return;
+                                }
+
+                                if (isKeyBackspace && preventBackspace) {
+                                    iElement.val(maskPlaceholder);
+                                    // This shouldn't be needed but for some reason after aggressive backspacing the controller $viewValue is incorrect.
+                                    // This keeps the $viewValue updated and correct.
+                                    scope.$apply(function () {
+                                        controller.$setViewValue(''); // $setViewValue should be run in angular context, otherwise the changes will be invisible to angular and user code.
+                                    });
+                                    setCaretPosition(this, caretPosOld);
                                     return;
                                 }
 
@@ -49039,7 +49208,10 @@ angular.module('ui.mask', [])
                                     var charIndex = maskCaretMap.indexOf(caretPos);
                                     // Strip out non-mask character that user would have deleted if mask hadn't been in the way.
                                     valUnmasked = valUnmasked.substring(0, charIndex) + valUnmasked.substring(charIndex + 1);
-                                    valAltered = true;
+
+                                    // If value has not changed, don't want to call $setViewValue, may be caused by IE raising input event due to placeholder
+                                    if (valUnmasked !== valUnmaskedOld)
+                                        valAltered = true;
                                 }
 
                                 // Update values
@@ -49047,19 +49219,19 @@ angular.module('ui.mask', [])
 
                                 oldValue = valMasked;
                                 oldValueUnmasked = valUnmasked;
-    
+
                                 //additional check to fix the problem where the viewValue is out of sync with the value of the element.
                                 //better fix for commit 2a83b5fb8312e71d220a497545f999fc82503bd9 (I think)
                                 if (!valAltered && val.length > valMasked.length)
                                     valAltered = true;
-    
+
                                 iElement.val(valMasked);
-    
+
                                 //we need this check.  What could happen if you don't have it is that you'll set the model value without the user
                                 //actually doing anything.  Meaning, things like pristine and touched will be set.
                                 if (valAltered) {
                                     scope.$apply(function () {
-                                        controller.$setViewValue(valUnmasked); // $setViewValue should be run in angular context, otherwise the changes will be invisible to angular and user code.
+                                        controller.$setViewValue(valMasked); // $setViewValue should be run in angular context, otherwise the changes will be invisible to angular and user code.
                                     });
                                 }
 
@@ -49139,6 +49311,9 @@ angular.module('ui.mask', [])
                                     return 0;
                                 if (input.selectionStart !== undefined) {
                                     return (input.selectionEnd - input.selectionStart);
+                                }
+                                if (window.getSelection) {
+                                    return (window.getSelection().toString().length);
                                 }
                                 if (document.selection) {
                                     return (document.selection.createRange().text.length);
@@ -49230,7 +49405,7 @@ angular.module('ui.event',[]).directive('uiEvent', ['$parse',
 /*!
  * angular-ui-validate
  * https://github.com/angular-ui/ui-validate
- * Version: 1.2.1 - 2015-10-23T01:54:01.326Z
+ * Version: 1.2.3 - 2017-05-18T08:04:45.422Z
  * License: MIT
  */
 
@@ -49304,7 +49479,7 @@ angular.module('ui.validate',[])
             // Return as valid for now. Validity is updated when promise resolves.
             return true;
           } else {
-            return expression;
+            return !!expression; // Transform 'undefined' to false (to avoid corrupting the NgModelController and the FormController)
           }
         };
         ctrl.$validators[key] = validateFn;
@@ -49473,7 +49648,7 @@ angular.module('ui.indeterminate', []).directive('uiIndeterminate', [
 /*!
  * angular-ui-scrollpoint
  * https://github.com/angular-ui/ui-scrollpoint
- * Version: 1.2.0 - 2015-11-11T01:45:07.327Z
+ * Version: 2.1.1 - 2016-02-22T01:35:08.609Z
  * License: MIT
  */
 
@@ -49485,7 +49660,7 @@ angular.module('ui.indeterminate', []).directive('uiIndeterminate', [
  * @param [offset] {int} optional Y-offset to override the detected offset.
  *   Takes 300 (absolute) or -300 or +300 (relative to detected)
  */
-angular.module('ui.scrollpoint', []).directive('uiScrollpoint', ['$window', function ($window) {
+angular.module('ui.scrollpoint', []).directive('uiScrollpoint', ['$window', '$timeout', function ($window, $timeout) {
 
         function getWindowScrollTop() {
             if (angular.isDefined($window.pageYOffset)) {
@@ -49495,77 +49670,457 @@ angular.module('ui.scrollpoint', []).directive('uiScrollpoint', ['$window', func
                 return iebody.scrollTop;
             }
         }
+        function getWindowScrollHeight() {
+            return ($window.document.body.scrollHeight - $window.innerHeight);
+        }
+        function getWindowHeight(contentHeight) {
+            return (contentHeight ? $window.document.body.clientHeight : $window.innerHeight);
+        }
         return {
-            require: '^?uiScrollpointTarget',
-            scope: {
-                uiScrollpoint: '@'
-            },
-            link: function (scope, elm, attrs, uiScrollpointTarget) {
-                var absolute = true,
-                    shift = 0,
-                    fixLimit,
-                    $target = uiScrollpointTarget && uiScrollpointTarget.$element || angular.element($window);
-    
-                function setup(scrollpoint) {
-                    if (!scrollpoint) {
-                        absolute = false;
-                    } else if (typeof (scrollpoint) === 'string') {
-                        // charAt is generally faster than indexOf: http://jsperf.com/indexof-vs-charat
-                        if (scrollpoint.charAt(0) === '-') {
-                            absolute = false;
-                            shift = -parseFloat(scrollpoint.substr(1));
-                        } else if (scrollpoint.charAt(0) === '+') {
-                            absolute = false;
-                            shift = parseFloat(scrollpoint.substr(1));
-                        } else {
+            require: ['uiScrollpoint', '^?uiScrollpointTarget'],
+            controller: function(){
+                var self = this;
+                this.$element = undefined;
+                this.$target = undefined;
+                this.hasTarget = false;
+
+                this.hit = undefined;
+                this.edges = { top: { top: true }}; // ui-scrollpoint on top edge of element with top edge of target
+                this.hitEdge = undefined;
+
+                this.default_edge = {
+                    absolute: false,
+                    percent: false,
+                    shift: 0
+                };
+                this.posCache = {};
+
+                this.ready = false;
+                this.enabled = true;
+                
+                this.scrollpointClass = 'ui-scrollpoint';
+                this.actions = undefined;
+
+                function parseScrollpoint(scrollpoint){
+                    var def = { shift: 0, absolute: false, percent: false };
+                    if(scrollpoint && angular.isString(scrollpoint)) {
+                        def.percent = (scrollpoint.charAt(scrollpoint.length-1) == '%');
+                        if(def.percent) {
+                            scrollpoint = scrollpoint.substr(0, scrollpoint.length-1);
+                        }
+                        if(scrollpoint.charAt(0) === '-') {
+                            def.absolute = def.percent;
+                            def.shift = -parseFloat(scrollpoint.substr(1));
+                        }
+                        else if(scrollpoint.charAt(0) === '+') {
+                            def.absolute = def.percent;
+                            def.shift = parseFloat(scrollpoint.substr(1));
+                        }
+                        else {
                             var parsed = parseFloat(scrollpoint);
                             if (!isNaN(parsed) && isFinite(parsed)) {
-                                absolute = true;
-                                shift = parsed;
+                                def.absolute = true;
+                                def.shift = parsed;
                             }
                         }
-                    } else if (typeof (scrollpoint) === 'number') {
-                        setup(scrollpoint.toString());
+                    }
+                    else if(angular.isNumber(scrollpoint)){
+                        return parseScrollpoint(scrollpoint.toString());
+                    }
+                    return def;
+                }
+
+                this.addEdge = function(view_edge, element_edge){
+                    if(angular.isString(view_edge)){
+                        if(angular.isUndefined(element_edge)){
+                            element_edge = true;
+                        }
+                        if(view_edge == 'view'){
+                            // view is a shorthand for matching top of element with bottom of view, and vice versa
+                            this.addEdge('top', 'bottom');
+                            this.addEdge('bottom', 'top');
+                        }
+                        else{
+                            var edge, parsedEdge;
+                            if(angular.isObject(element_edge)){
+                                // the view_edge interacts with more than one element_edge
+                                for(edge in element_edge){
+                                    // parse each element_edge definition (allows each element_edge to have its own scrollpoint with view_edge)
+                                    if(element_edge[edge] === true){
+                                        element_edge[edge] = true; // use the ui-scrollpoint default
+                                    }
+                                    else{
+                                        element_edge[edge] = parseScrollpoint(element_edge[edge]);
+                                    }
+                                }
+                            }
+                            else if(element_edge == 'top' || element_edge == 'bottom'){
+                                // simple top or bottom of element with 0 shift
+                                edge = element_edge;
+                                parsedEdge = parseScrollpoint();
+                                element_edge = {};
+                                element_edge[edge] = parsedEdge;
+                            }
+                            else if(element_edge === true){
+                                element_edge = {};
+                                element_edge[view_edge] = true; // use the ui-scrollpoint default
+                            }
+                            else{
+                                // element_edge matches view_edge (ie. top of element interacts with top of view)
+                                parsedEdge = parseScrollpoint(element_edge);
+                                element_edge = {};
+                                element_edge[view_edge] = parsedEdge;
+                            }
+                            // element_edge has been parsed
+                            this.edges[view_edge] = element_edge;
+                        }
+                    }
+                };
+
+                this.addAction = function(action){
+                    if(action && angular.isFunction(action)){
+                        if(angular.isUndefined(this.actions)){
+                            this.actions = [action];
+                        }
+                        else if(this.actions.indexOf(action) == -1){
+                            this.actions.push(action);
+                        }
+                    }
+                };
+
+                this.setScrollpoint = function(scrollpoint){
+                    this.default_edge = parseScrollpoint(scrollpoint);
+                };
+
+                this.setClass = function(_class){
+                    if(!_class){
+                        _class = 'ui-scrollpoint';
+                    }
+                    this.scrollpointClass = _class;
+                };
+
+                this.setEdges = function(edges){
+                    // normalize uiScrollpointEdge into edges structure
+                    //  edges = { ['screen_edge'] : ['element_edge' | true] }
+                    if(angular.isString(edges)){
+                        this.edges = {};
+                        this.addEdge(edges);
+                    }
+                    else if(angular.isArray(edges)){
+                        this.edges = {};
+                        for(var i=0; i < edges.length; i++){
+                            this.addEdge(edges[i]);
+                        }
+                    }
+                    else if(angular.isObject(edges)){
+                        this.edges = {};
+                        for(var edge in edges){
+                            this.addEdge(edge, edges[edge]);
+                        }
+                    }
+                    else{
+                        // default
+                        this.edges = {};
+                        this.addEdge('top');
+                    }
+                };
+
+                this.setElement = function(element){
+                    this.$element = element;
+                };
+
+                this.setTarget = function(target){
+                    if(target){
+                        this.$target = target;
+                        this.hasTarget = true;
+                    }
+                    else{
+                        this.$target = angular.element($window);
+                        this.hasTarget = false;
+                    }
+                };
+
+                this.getEdge = function(scroll_edge, element_edge){
+                    if(scroll_edge && element_edge){
+                        if(this.edges[scroll_edge] && this.edges[scroll_edge][element_edge] && this.edges[scroll_edge][element_edge] !== true){
+                            return this.edges[scroll_edge][element_edge];
+                        }
+                    }
+                    else if(scroll_edge && !element_edge){
+                        if(this.edges[scroll_edge]){
+                            return this.edges[scroll_edge];
+                        }
                         return;
                     }
-                    fixLimit = absolute ? scope.uiScrollpoint : elm[0].offsetTop + shift;
-                }
-                setup(scope.uiScrollpoint);
-    
-                function onScroll() {
-    
-                    var limit = absolute ? scope.uiScrollpoint : elm[0].offsetTop + shift;
-    
-                    // if pageYOffset is defined use it, otherwise use other crap for IE
-                    var offset = uiScrollpointTarget ? $target[0].scrollTop : getWindowScrollTop();
-                    if (!elm.hasClass('ui-scrollpoint') && offset > limit) {
-                        elm.addClass('ui-scrollpoint');
-                        fixLimit = limit;
-                    } else if (elm.hasClass('ui-scrollpoint') && offset < fixLimit) {
-                        elm.removeClass('ui-scrollpoint');
+                    return this.default_edge;
+                };
+
+                this.checkOffset = function(scroll_edge, elem_edge, edge){
+                    var offset;
+                    if(!edge){
+                        edge = this.default_edge;
                     }
-                }
-    
-                function reset() {
-                    elm.removeClass('ui-scrollpoint');
-                    fixLimit = absolute ? scope.uiScrollpoint : elm[0].offsetTop + shift;
-                    onScroll();
-                }
-    
-                scope.$on('scrollpointShouldReset', reset);
-    
-                $target.on('scroll', onScroll);
-                onScroll(); // sets the initial state
-    
-                // Unbind scroll event handler when directive is removed
-                scope.$on('$destroy', function () {
-                    $target.off('scroll', onScroll);
+
+                    var scroll_bottom = (scroll_edge == 'bottom');
+                    var elem_top = (elem_edge == 'top');
+                    var elem_bottom = (elem_edge == 'bottom');
+
+                    var scrollOffset = this.getScrollOffset();
+                    if(scroll_bottom){
+                        scrollOffset += this.getTargetHeight();
+                    }
+
+                    var checkOffset;
+                    if(edge.absolute){
+                        if(edge.percent){
+                            checkOffset = edge.shift / 100.0 * this.getTargetScrollHeight();
+                        }
+                        else{
+                            checkOffset = edge.shift;
+                        }
+                        if(scroll_bottom){
+                            checkOffset = this.getTargetContentHeight() - checkOffset;
+                            if(this.hasTarget){
+                                checkOffset += this.getTargetHeight();
+                            }
+                        }
+                    }
+                    else{
+                        if(elem_top){
+                            checkOffset = this.getElementTop();
+                        }
+                        else if(elem_bottom){
+                            checkOffset = this.getElementBottom();
+                        }
+                        checkOffset += edge.shift;
+                    }
+
+                    offset = (scrollOffset - checkOffset);
+                    if(scroll_bottom){
+                        offset *= -1.0;
+                    }
+                    return offset;
+                };
+
+                this.scrollEdgeHit = function(){
+                    var offset, edgeHit, absEdges, absEdgeHits;
+                    var edge, scroll_edge, element_edge;
+                    absEdges = 0;
+                    absEdgeHits = {};
+                    for(scroll_edge in this.edges){
+                        for(element_edge in this.edges[scroll_edge]){
+                            edge = this.getEdge(scroll_edge, element_edge);
+                            var edge_offset = this.checkOffset(scroll_edge, element_edge, edge);
+
+                            if(edge.absolute){
+                                if(angular.isUndefined(absEdgeHits)){
+                                    absEdgeHits = {};
+                                }
+                                if(angular.isUndefined(absEdgeHits[scroll_edge])){
+                                    absEdgeHits[scroll_edge] = {};
+                                }
+                                absEdgeHits[scroll_edge][element_edge] = edge_offset;
+                                absEdges++;
+                            }
+                            else if(angular.isUndefined(offset) || edge_offset > offset){
+                                offset = edge_offset;
+                                edgeHit = {scroll: scroll_edge, element: element_edge};
+                            }
+                        }
+                    }
+                    // special handling for absolute edges when no relative edges hit
+                    if(absEdges && !edgeHit){
+                        // in case there is more than one absolute edge, they all should pass to count a hit (allows for creating ranges where the scrollpoint is active)
+                        var allPass = true;
+                        offset = undefined;
+                        for(scroll_edge in absEdgeHits){
+                            for(element_edge in absEdgeHits[scroll_edge]){
+                                if(absEdges > 1 && absEdgeHits[scroll_edge][element_edge] < 0){
+                                    allPass = false;
+                                }
+                                else if(angular.isUndefined(offset) || absEdgeHits[scroll_edge][element_edge] > offset){
+                                    offset = absEdgeHits[scroll_edge][element_edge];
+                                    edgeHit = {scroll: scroll_edge, element: element_edge};
+                                }
+                            }
+                        }
+                        if(!allPass){
+                            edgeHit = undefined;
+                            offset = undefined;
+                        }
+                    }
+                    this.hitEdge = ((offset >= 0) ? edgeHit : undefined);
+                    return offset;
+                };
+
+                this.getScrollOffset = function(){
+                    return this.hasTarget ? this.$target[0].scrollTop : getWindowScrollTop();
+                };
+                this.getTargetHeight = function(){
+                    return this.hasTarget ? this.$target[0].offsetHeight : getWindowHeight();
+                };
+                this.getTargetContentHeight = function(){
+                    return ( this.hasTarget ? (this.$target[0].scrollHeight - this.$target[0].clientHeight) : getWindowHeight(true) );
+                };
+                this.getTargetScrollHeight = function(){
+                    return ( this.hasTarget ? (this.$target[0].scrollHeight - this.$target[0].clientHeight) : getWindowScrollHeight() );
+                };
+
+                this.getElementTop = function(current){
+                    if(!current && angular.isDefined(this.posCache.top)){
+                        return this.posCache.top;
+                    }
+                    var bounds = this.$element[0].getBoundingClientRect();
+                    var top = bounds.top + this.getScrollOffset();
+
+                    if(this.hasTarget){
+                        var targetBounds = this.$target[0].getBoundingClientRect();
+                        top -= targetBounds.top;
+                    }
+
+                    return top;
+                };
+                this.getElementBottom = function(current){
+                    return this.getElementTop(current) + this.$element[0].offsetHeight;
+                };
+
+                this.cachePosition = function(){
+                    this.posCache.top = this.getElementTop(true);
+                };
+
+                this.onScroll = function() {
+                    if(!self.ready || !self.enabled){ return; }
+
+                    var edgeHit = self.scrollEdgeHit();
+                    
+                    // edgeHit >= 0 - scrollpoint is scrolled out of active view
+                    // edgeHit < 0 - scrollpoint is in active view
+
+                    // hit is toggled at the moment the scrollpoint is crossed
+
+                    var fireActions = false;
+
+                    if(edgeHit >= 0){
+                        // SCROLLPOINT is OUT by edgeHit pixels
+                        if(!self.hit){
+                            // add the scrollpoint class
+                            if(!self.$element.hasClass(self.scrollpointClass)){
+                                self.$element.addClass(self.scrollpointClass);
+                            }
+                            fireActions = true;
+                            self.hit = true;
+                        }
+                    }
+                    else{
+                        // SCROLLPOINT is IN by edgeHit pixels
+                        if(self.hit || angular.isUndefined(self.hit)){
+                            // remove the scrollpoint class
+                            if(self.$element.hasClass(self.scrollpointClass)){
+                                self.$element.removeClass(self.scrollpointClass);
+                            }
+                            fireActions = true;
+                            self.hit = false;
+                        }
+                        self.cachePosition();
+                    }
+
+                    if(fireActions){
+                        // fire the actions
+                        if(self.actions){
+                            for(var i=0; i < self.actions.length; i++){
+                                self.actions[i](edgeHit, self.$element, (self.hitEdge ? self.hitEdge.scroll : undefined), (self.hitEdge ? self.hitEdge.element : undefined));
+                            }
+                        }
+                    }
+                };
+
+                this.reset = function(){
+                    $timeout(function(){
+                        self.$element.removeClass(self.scrollpointClass);
+                        self.hit = undefined;
+                        self.hitEdge = undefined;
+                        self.cachePosition();
+                        self.onScroll();
+                    });
+                };
+            },
+            link: function (scope, elm, attrs, Ctrl) {
+                var uiScrollpoint = Ctrl[0];
+                var uiScrollpointTarget = Ctrl[1];
+                var absoluteParent = false;
+
+                uiScrollpoint.setElement(elm);
+                uiScrollpoint.setTarget( uiScrollpointTarget ? uiScrollpointTarget.$element : null);
+
+                // base ui-scrollpoint (leave blank or set to: absolute, +, -, or %)
+                attrs.$observe('uiScrollpoint', function(scrollpoint){
+                    uiScrollpoint.setScrollpoint(scrollpoint);
+                    uiScrollpoint.reset();
+                });
+
+                // ui-scrollpoint-enabled allows disabling the scrollpoint
+                attrs.$observe('uiScrollpointEnabled', function(scrollpointEnabled){
+                    scrollpointEnabled = scope.$eval(scrollpointEnabled);
+                    if(scrollpointEnabled != uiScrollpoint.enabled){
+                        uiScrollpoint.reset();
+                    }
+                    uiScrollpoint.enabled = scrollpointEnabled;
+                });
+
+                // ui-scrollpoint-absolute bypasses ui-scrollpoint-target
+                attrs.$observe('uiScrollpointAbsolute', function(scrollpointAbsolute){
+                    scrollpointAbsolute = scope.$eval(scrollpointAbsolute);
+                    if(scrollpointAbsolute != absoluteParent){
+                        if(uiScrollpoint.$target){
+                            uiScrollpoint.$target.off('scroll', uiScrollpoint.onScroll);
+                        }
+                        uiScrollpoint.setTarget( (!scrollpointAbsolute && uiScrollpointTarget) ? uiScrollpointTarget.$element : null);
+                        resetTarget();
+                        uiScrollpoint.reset();
+                    }
+                    absoluteParent = scrollpointAbsolute;
+                });
+
+                // ui-scrollpoint-action function name to use as scrollpoint callback
+                attrs.$observe('uiScrollpointAction', function(uiScrollpointAction){
+                    var action = scope.$eval(uiScrollpointAction);
+                    if(action && angular.isFunction(action)){
+                        uiScrollpoint.addAction(action);
+                    }
+                });
+
+                // ui-scrollpoint-class class to add instead of ui-scrollpoint
+                attrs.$observe('uiScrollpointClass', function(scrollpointClass){
+                    elm.removeClass(uiScrollpoint.scrollpointClass);
+                    uiScrollpoint.setClass(scrollpointClass);
+                    uiScrollpoint.reset();
+                });
+
+                // ui-scrollpoint-edge allows configuring which element and scroll edges match
+                attrs.$observe('uiScrollpointEdge', function(scrollpointEdge){
+                    if(scrollpointEdge){
+                        // allowed un-$eval'ed values
+                        var allowedKeywords = ['top', 'bottom', 'view'];
+                        if(allowedKeywords.indexOf(scrollpointEdge) == -1){
+                            // $eval any other values
+                            scrollpointEdge = scope.$eval(scrollpointEdge);
+                        }
+
+                        // assign it in controller
+                        uiScrollpoint.setEdges(scrollpointEdge);
+                        uiScrollpoint.reset();
+                    }
                 });
     
-                scope.$watch('uiScrollpoint', function (newScrollpoint) {
-                    setup(newScrollpoint);
-                    onScroll();
-                });
+                function resetTarget() {
+                    uiScrollpoint.$target.on('scroll', uiScrollpoint.onScroll);
+                    scope.$on('$destroy', function () {
+                        uiScrollpoint.$target.off('scroll', uiScrollpoint.onScroll);
+                    });
+                }
+                resetTarget();
+                elm.ready(function(){ uiScrollpoint.ready=true; uiScrollpoint.onScroll(); });
+                scope.$on('scrollpointShouldReset', uiScrollpoint.reset);
             }
         };
     }]).directive('uiScrollpointTarget', [function () {
@@ -49578,668 +50133,1614 @@ angular.module('ui.scrollpoint', []).directive('uiScrollpoint', ['$window', func
 
 }());
 /*!
- * angular-ui-scroll
- * https://github.com/angular-ui/ui-scroll.git
- * Version: 1.3.2 -- 2015-09-03T15:39:10.862Z
+ * angular-ui-scroll (uncompressed)
+ * https://github.com/angular-ui/ui-scroll
+ * Version: 1.6.3 -- 2017-07-10T13:00:22.695Z
  * License: MIT
  */
- 
+/******/ (function(modules) { // webpackBootstrap
+/******/ 	// The module cache
+/******/ 	var installedModules = {};
+/******/
+/******/ 	// The require function
+/******/ 	function __webpack_require__(moduleId) {
+/******/
+/******/ 		// Check if module is in cache
+/******/ 		if(installedModules[moduleId]) {
+/******/ 			return installedModules[moduleId].exports;
+/******/ 		}
+/******/ 		// Create a new module (and put it into the cache)
+/******/ 		var module = installedModules[moduleId] = {
+/******/ 			i: moduleId,
+/******/ 			l: false,
+/******/ 			exports: {}
+/******/ 		};
+/******/
+/******/ 		// Execute the module function
+/******/ 		modules[moduleId].call(module.exports, module, module.exports, __webpack_require__);
+/******/
+/******/ 		// Flag the module as loaded
+/******/ 		module.l = true;
+/******/
+/******/ 		// Return the exports of the module
+/******/ 		return module.exports;
+/******/ 	}
+/******/
+/******/
+/******/ 	// expose the modules object (__webpack_modules__)
+/******/ 	__webpack_require__.m = modules;
+/******/
+/******/ 	// expose the module cache
+/******/ 	__webpack_require__.c = installedModules;
+/******/
+/******/ 	// identity function for calling harmony imports with the correct context
+/******/ 	__webpack_require__.i = function(value) { return value; };
+/******/
+/******/ 	// define getter function for harmony exports
+/******/ 	__webpack_require__.d = function(exports, name, getter) {
+/******/ 		if(!__webpack_require__.o(exports, name)) {
+/******/ 			Object.defineProperty(exports, name, {
+/******/ 				configurable: false,
+/******/ 				enumerable: true,
+/******/ 				get: getter
+/******/ 			});
+/******/ 		}
+/******/ 	};
+/******/
+/******/ 	// getDefaultExport function for compatibility with non-harmony modules
+/******/ 	__webpack_require__.n = function(module) {
+/******/ 		var getter = module && module.__esModule ?
+/******/ 			function getDefault() { return module['default']; } :
+/******/ 			function getModuleExports() { return module; };
+/******/ 		__webpack_require__.d(getter, 'a', getter);
+/******/ 		return getter;
+/******/ 	};
+/******/
+/******/ 	// Object.prototype.hasOwnProperty.call
+/******/ 	__webpack_require__.o = function(object, property) { return Object.prototype.hasOwnProperty.call(object, property); };
+/******/
+/******/ 	// __webpack_public_path__
+/******/ 	__webpack_require__.p = "";
+/******/
+/******/ 	// Load entry module and return exports
+/******/ 	return __webpack_require__(__webpack_require__.s = 7);
+/******/ })
+/************************************************************************/
+/******/ ([
+/* 0 */
+/***/ (function(module, exports, __webpack_require__) {
 
- (function () {
-'use strict';
+"use strict";
 
-/*!
-globals: angular, window
 
-	List of used element methods available in JQuery but not in JQuery Lite
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
 
-		element.before(elem)
-		element.height()
-		element.outerHeight(true)
-		element.height(value) = only for Top/Bottom padding elements
-		element.scrollTop()
-		element.scrollTop(value)
- */
-angular.module('ui.scroll', []).directive('uiScrollViewport', function() {
-  return {
-    controller: [
-      '$scope', '$element', function(scope, element) {
-        this.viewport = element;
-        return this;
-      }
-    ]
-  };
-}).directive('uiScroll', [
-  '$log', '$injector', '$rootScope', '$timeout', '$q', '$parse', function(console, $injector, $rootScope, $timeout, $q, $parse) {
-    var $animate;
-    if ($injector.has && $injector.has('$animate')) {
-      $animate = $injector.get('$animate');
-    }
-    return {
-      require: ['?^uiScrollViewport'],
-      transclude: 'element',
-      priority: 1000,
-      terminal: true,
-      compile: function(elementTemplate, attr, linker) {
-        return function($scope, element, $attr, controllers) {
-          var adapter, adapterOnScope, adjustBuffer, adjustBufferAfterFetch, applyUpdate, bof, bottomVisiblePos, buffer, bufferPadding, bufferSize, builder, calculateTopProperties, clipBottom, clipTop, datasource, datasourceName, dismissPendingRequests, enqueueFetch, eof, eventListener, fetch, first, insertElement, insertElementAnimated, insertItem, insertWrapperContent, isAngularVersionLessThen1_3, isDatasourceValid, isElementVisible, itemName, loading, log, match, next, pending, processBufferedItems, reload, removeFromBuffer, removeItem, resizeAndScrollHandler, ridActual, scrollHeight, shouldLoadBottom, shouldLoadTop, topVisible, topVisiblePos, unsupportedMethod, viewport, viewportScope, visibilityWatcher, wheelHandler;
-          log = console.debug || console.log;
-          if (!(match = $attr.uiScroll.match(/^\s*(\w+)\s+in\s+([\w\.]+)\s*$/))) {
-            throw new Error('Expected uiScroll in form of \'_item_ in _datasource_\' but got \' + $attr.uiScroll + \'');
-          }
-          itemName = match[1];
-          datasourceName = match[2];
-          datasource = $parse(datasourceName)($scope);
-          isDatasourceValid = function() {
-            return angular.isObject(datasource) && angular.isFunction(datasource.get);
-          };
-          if (!isDatasourceValid()) {
-            datasource = $injector.get(datasourceName);
-            if (!isDatasourceValid()) {
-              throw new Error(datasourceName + ' is not a valid datasource');
-            }
-          }
-          bufferSize = Math.max(3, +$attr.bufferSize || 10);
-          bufferPadding = function() {
-            return viewport.outerHeight() * Math.max(0.1, +$attr.padding || 0.1);
-          };
-          scrollHeight = function(elem) {
-            var ref;
-            return (ref = elem[0].scrollHeight) != null ? ref : elem[0].document.documentElement.scrollHeight;
-          };
-          builder = null;
-          ridActual = 0;
-          first = 1;
-          next = 1;
-          buffer = [];
-          pending = [];
-          eof = false;
-          bof = false;
-          isAngularVersionLessThen1_3 = angular.version.major === 1 && angular.version.minor < 3;
-          removeItem = $animate ? isAngularVersionLessThen1_3 ? function(wrapper) {
-            var deferred;
-            buffer.splice(buffer.indexOf(wrapper), 1);
-            deferred = $q.defer();
-            $animate.leave(wrapper.element, function() {
-              wrapper.scope.$destroy();
-              return deferred.resolve();
-            });
-            return [deferred.promise];
-          } : function(wrapper) {
-            buffer.splice(buffer.indexOf(wrapper), 1);
-            return [
-              ($animate.leave(wrapper.element)).then(function() {
-                return wrapper.scope.$destroy();
-              })
-            ];
-          } : function(wrapper) {
-            buffer.splice(buffer.indexOf(wrapper), 1);
-            wrapper.element.remove();
-            wrapper.scope.$destroy();
-            return [];
-          };
-          insertElement = function(newElement, previousElement) {
-            element.after.apply(previousElement, [newElement]);
-            return [];
-          };
-          insertElementAnimated = $animate ? isAngularVersionLessThen1_3 ? function(newElement, previousElement) {
-            var deferred;
-            deferred = $q.defer();
-            $animate.enter(newElement, element, previousElement, function() {
-              return deferred.resolve();
-            });
-            return [deferred.promise];
-          } : function(newElement, previousElement) {
-            return [$animate.enter(newElement, element, previousElement)];
-          } : insertElement;
-          linker($scope.$new(), function(template, scope) {
-            var bottomPadding, padding, repeaterType, topPadding, viewport;
-            scope.$destroy();
-            repeaterType = template[0].localName;
-            if (repeaterType === 'dl') {
-              throw new Error('ui-scroll directive does not support <' + template[0].localName + '> as a repeating tag: ' + template[0].outerHTML);
-            }
-            if (repeaterType !== 'li' && repeaterType !== 'tr') {
-              repeaterType = 'div';
-            }
-            viewport = controllers[0] && controllers[0].viewport ? controllers[0].viewport : angular.element(window);
-            viewport.css({
-              'overflow-y': 'auto',
-              'display': 'block'
-            });
-            padding = function(repeaterType) {
-              var div, result, table;
-              switch (repeaterType) {
-                case 'tr':
-                  table = angular.element('<table><tr><td><div></div></td></tr></table>');
-                  div = table.find('div');
-                  result = table.find('tr');
-                  result.paddingHeight = function() {
-                    return div.height.apply(div, arguments);
-                  };
-                  break;
-                default:
-                  result = angular.element('<' + repeaterType + '></' + repeaterType + '>');
-                  result.paddingHeight = result.height;
-              }
-              return result;
-            };
-            topPadding = padding(repeaterType);
-            element.before(topPadding);
-            bottomPadding = padding(repeaterType);
-            element.after(bottomPadding);
-            $scope.$on('$destroy', function() {
-              return template.remove();
-            });
-            return builder = {
-              viewport: viewport,
-              topPadding: function() {
-                return topPadding.paddingHeight.apply(topPadding, arguments);
-              },
-              bottomPadding: function() {
-                return bottomPadding.paddingHeight.apply(bottomPadding, arguments);
-              },
-              bottomDataPos: function() {
-                return scrollHeight(viewport) - bottomPadding.paddingHeight();
-              },
-              topDataPos: function() {
-                return topPadding.paddingHeight();
-              },
-              insertElement: function(e, sibling) {
-                return insertElement(e, sibling || topPadding);
-              },
-              insertElementAnimated: function(e, sibling) {
-                return insertElementAnimated(e, sibling || topPadding);
-              }
-            };
-          });
-          viewport = builder.viewport;
-          viewportScope = viewport.scope() || $rootScope;
-          topVisible = function(item) {
-            adapter.topVisible = item.scope[itemName];
-            adapter.topVisibleElement = item.element;
-            adapter.topVisibleScope = item.scope;
-            if ($attr.topVisible) {
-              $parse($attr.topVisible).assign(viewportScope, adapter.topVisible);
-            }
-            if ($attr.topVisibleElement) {
-              $parse($attr.topVisibleElement).assign(viewportScope, adapter.topVisibleElement);
-            }
-            if ($attr.topVisibleScope) {
-              $parse($attr.topVisibleScope).assign(viewportScope, adapter.topVisibleScope);
-            }
-            if (angular.isFunction(datasource.topVisible)) {
-              return datasource.topVisible(item);
-            }
-          };
-          loading = function(value) {
-            adapter.isLoading = value;
-            if ($attr.isLoading) {
-              $parse($attr.isLoading).assign($scope, value);
-            }
-            if (angular.isFunction(datasource.loading)) {
-              return datasource.loading(value);
-            }
-          };
-          removeFromBuffer = function(start, stop) {
-            var i, j, ref, ref1;
-            for (i = j = ref = start, ref1 = stop; ref <= ref1 ? j < ref1 : j > ref1; i = ref <= ref1 ? ++j : --j) {
-              buffer[i].scope.$destroy();
-              buffer[i].element.remove();
-            }
-            return buffer.splice(start, stop - start);
-          };
-          dismissPendingRequests = function() {
-            ridActual++;
-            return pending = [];
-          };
-          reload = function() {
-            dismissPendingRequests();
-            first = 1;
-            next = 1;
-            removeFromBuffer(0, buffer.length);
-            builder.topPadding(0);
-            builder.bottomPadding(0);
-            eof = false;
-            bof = false;
-            return adjustBuffer(ridActual);
-          };
-          bottomVisiblePos = function() {
-            return viewport.scrollTop() + viewport.outerHeight();
-          };
-          topVisiblePos = function() {
-            return viewport.scrollTop();
-          };
-          shouldLoadBottom = function() {
-            return !eof && builder.bottomDataPos() < bottomVisiblePos() + bufferPadding();
-          };
-          clipBottom = function() {
-            var bottomHeight, i, item, itemHeight, itemTop, j, newRow, overage, ref, rowTop;
-            bottomHeight = 0;
-            overage = 0;
-            for (i = j = ref = buffer.length - 1; ref <= 0 ? j <= 0 : j >= 0; i = ref <= 0 ? ++j : --j) {
-              item = buffer[i];
-              itemTop = item.element.offset().top;
-              newRow = rowTop !== itemTop;
-              rowTop = itemTop;
-              if (newRow) {
-                itemHeight = item.element.outerHeight(true);
-              }
-              if (builder.bottomDataPos() - bottomHeight - itemHeight > bottomVisiblePos() + bufferPadding()) {
-                if (newRow) {
-                  bottomHeight += itemHeight;
-                }
-                overage++;
-                eof = false;
-              } else {
-                if (newRow) {
-                  break;
-                }
-                overage++;
-              }
-            }
-            if (overage > 0) {
-              builder.bottomPadding(builder.bottomPadding() + bottomHeight);
-              removeFromBuffer(buffer.length - overage, buffer.length);
-              return next -= overage;
-            }
-          };
-          shouldLoadTop = function() {
-            return !bof && (builder.topDataPos() > topVisiblePos() - bufferPadding());
-          };
-          clipTop = function() {
-            var item, itemHeight, itemTop, j, len, newRow, overage, rowTop, topHeight;
-            topHeight = 0;
-            overage = 0;
-            for (j = 0, len = buffer.length; j < len; j++) {
-              item = buffer[j];
-              itemTop = item.element.offset().top;
-              newRow = rowTop !== itemTop;
-              rowTop = itemTop;
-              if (newRow) {
-                itemHeight = item.element.outerHeight(true);
-              }
-              if (builder.topDataPos() + topHeight + itemHeight < topVisiblePos() - bufferPadding()) {
-                if (newRow) {
-                  topHeight += itemHeight;
-                }
-                overage++;
-                bof = false;
-              } else {
-                if (newRow) {
-                  break;
-                }
-                overage++;
-              }
-            }
-            if (overage > 0) {
-              builder.topPadding(builder.topPadding() + topHeight);
-              removeFromBuffer(0, overage);
-              return first += overage;
-            }
-          };
-          enqueueFetch = function(rid, direction) {
-            if (!adapter.isLoading) {
-              loading(true);
-            }
-            if (pending.push(direction) === 1) {
-              return fetch(rid);
-            }
-          };
-          insertItem = function(operation, item) {
-            var itemScope, wrapper;
-            itemScope = $scope.$new();
-            itemScope[itemName] = item;
-            wrapper = {
-              scope: itemScope
-            };
-            linker(itemScope, function(clone) {
-              return wrapper.element = clone;
-            });
-            if (operation % 1 === 0) {
-              wrapper.op = 'insert';
-              return buffer.splice(operation, 0, wrapper);
-            } else {
-              wrapper.op = operation;
-              switch (operation) {
-                case 'append':
-                  return buffer.push(wrapper);
-                case 'prepend':
-                  return buffer.unshift(wrapper);
-              }
-            }
-          };
-          isElementVisible = function(wrapper) {
-            return wrapper.element.height() && wrapper.element[0].offsetParent;
-          };
-          visibilityWatcher = function(wrapper) {
-            var item, j, len;
-            if (isElementVisible(wrapper)) {
-              for (j = 0, len = buffer.length; j < len; j++) {
-                item = buffer[j];
-                if (angular.isFunction(item.unregisterVisibilityWatcher)) {
-                  item.unregisterVisibilityWatcher();
-                  delete item.unregisterVisibilityWatcher;
-                }
-              }
-              return adjustBuffer();
-            }
-          };
-          insertWrapperContent = function(wrapper, sibling) {
-            builder.insertElement(wrapper.element, sibling);
-            if (isElementVisible(wrapper)) {
-              return true;
-            }
-            wrapper.unregisterVisibilityWatcher = wrapper.scope.$watch(function() {
-              return visibilityWatcher(wrapper);
-            });
-            return false;
-          };
-          processBufferedItems = function(rid) {
-            var bottomPos, heightIncrement, i, item, j, k, keepFetching, l, len, len1, len2, len3, m, promises, toBePrepended, toBeRemoved, wrapper;
-            promises = [];
-            toBePrepended = [];
-            toBeRemoved = [];
-            bottomPos = builder.bottomDataPos();
-            for (i = j = 0, len = buffer.length; j < len; i = ++j) {
-              wrapper = buffer[i];
-              switch (wrapper.op) {
-                case 'prepend':
-                  toBePrepended.unshift(wrapper);
-                  break;
-                case 'append':
-                  if (i === 0) {
-                    keepFetching = insertWrapperContent(wrapper) || keepFetching;
-                  } else {
-                    keepFetching = insertWrapperContent(wrapper, buffer[i - 1].element) || keepFetching;
-                  }
-                  wrapper.op = 'none';
-                  break;
-                case 'insert':
-                  if (i === 0) {
-                    promises = promises.concat(builder.insertElementAnimated(wrapper.element));
-                  } else {
-                    promises = promises.concat(builder.insertElementAnimated(wrapper.element, buffer[i - 1].element));
-                  }
-                  wrapper.op = 'none';
-                  break;
-                case 'remove':
-                  toBeRemoved.push(wrapper);
-              }
-            }
-            for (k = 0, len1 = toBeRemoved.length; k < len1; k++) {
-              wrapper = toBeRemoved[k];
-              promises = promises.concat(removeItem(wrapper));
-            }
-            builder.bottomPadding(Math.max(0, builder.bottomPadding() - (builder.bottomDataPos() - bottomPos)));
-            if (toBePrepended.length) {
-              bottomPos = builder.bottomDataPos();
-              for (l = 0, len2 = toBePrepended.length; l < len2; l++) {
-                wrapper = toBePrepended[l];
-                keepFetching = insertWrapperContent(wrapper) || keepFetching;
-                wrapper.op = 'none';
-              }
-              heightIncrement = builder.bottomDataPos() - bottomPos;
-              if (builder.topPadding() >= heightIncrement) {
-                builder.topPadding(builder.topPadding() - heightIncrement);
-              } else {
-                viewport.scrollTop(viewport.scrollTop() + heightIncrement);
-              }
-            }
-            for (i = m = 0, len3 = buffer.length; m < len3; i = ++m) {
-              item = buffer[i];
-              item.scope.$index = first + i;
-            }
-            if (promises.length) {
-              $q.all(promises).then(function() {
-                return adjustBuffer(rid);
-              });
-            }
-            return keepFetching;
-          };
-          calculateTopProperties = function() {
-            var item, itemHeight, itemTop, j, len, newRow, results, rowTop, topHeight;
-            topHeight = 0;
-            results = [];
-            for (j = 0, len = buffer.length; j < len; j++) {
-              item = buffer[j];
-              itemTop = item.element.offset().top;
-              newRow = rowTop !== itemTop;
-              rowTop = itemTop;
-              if (newRow) {
-                itemHeight = item.element.outerHeight(true);
-              }
-              if (newRow && (builder.topDataPos() + topHeight + itemHeight < topVisiblePos())) {
-                results.push(topHeight += itemHeight);
-              } else {
-                if (newRow) {
-                  topVisible(item);
-                }
-                break;
-              }
-            }
-            return results;
-          };
-          adjustBuffer = function(rid) {
-            return $timeout(function() {
-              processBufferedItems(rid);
-              if (shouldLoadBottom()) {
-                enqueueFetch(rid, true);
-              } else {
-                if (shouldLoadTop()) {
-                  enqueueFetch(rid, false);
-                }
-              }
-              if (pending.length === 0) {
-                return calculateTopProperties();
-              }
-            });
-          };
-          adjustBufferAfterFetch = function(rid) {
-            return $timeout(function() {
-              var keepFetching;
-              keepFetching = processBufferedItems(rid);
-              if (shouldLoadBottom()) {
-                if (keepFetching) {
-                  enqueueFetch(rid, true);
-                }
-              } else {
-                if (shouldLoadTop()) {
-                  if (keepFetching || pending[0]) {
-                    enqueueFetch(rid, false);
-                  }
-                }
-              }
-              pending.shift();
-              if (pending.length === 0) {
-                loading(false);
-                return calculateTopProperties();
-              } else {
-                return fetch(rid);
-              }
-            });
-          };
-          fetch = function(rid) {
-            if (pending[0]) {
-              if (buffer.length && !shouldLoadBottom()) {
-                return adjustBufferAfterFetch(rid);
-              } else {
-                return datasource.get(next, bufferSize, function(result) {
-                  var item, j, len;
-                  if ((rid && rid !== ridActual) || $scope.$$destroyed) {
-                    return;
-                  }
-                  if (result.length < bufferSize) {
-                    eof = true;
-                    builder.bottomPadding(0);
-                  }
-                  if (result.length > 0) {
-                    clipTop();
-                    for (j = 0, len = result.length; j < len; j++) {
-                      item = result[j];
-                      ++next;
-                      insertItem('append', item);
-                    }
-                  }
-                  return adjustBufferAfterFetch(rid);
-                });
-              }
-            } else {
-              if (buffer.length && !shouldLoadTop()) {
-                return adjustBufferAfterFetch(rid);
-              } else {
-                return datasource.get(first - bufferSize, bufferSize, function(result) {
-                  var i, j, ref;
-                  if ((rid && rid !== ridActual) || $scope.$$destroyed) {
-                    return;
-                  }
-                  if (result.length < bufferSize) {
-                    bof = true;
-                    builder.topPadding(0);
-                  }
-                  if (result.length > 0) {
-                    if (buffer.length) {
-                      clipBottom();
-                    }
-                    for (i = j = ref = result.length - 1; ref <= 0 ? j <= 0 : j >= 0; i = ref <= 0 ? ++j : --j) {
-                      --first;
-                      insertItem('prepend', result[i]);
-                    }
-                  }
-                  return adjustBufferAfterFetch(rid);
-                });
-              }
-            }
-          };
-          resizeAndScrollHandler = function() {
-            if (!$rootScope.$$phase && !adapter.isLoading) {
-              adjustBuffer();
-              return $scope.$apply();
-            }
-          };
-          wheelHandler = function(event) {
-            var scrollTop, yMax;
-            scrollTop = viewport[0].scrollTop;
-            yMax = viewport[0].scrollHeight - viewport[0].clientHeight;
-            if ((scrollTop === 0 && !bof) || (scrollTop === yMax && !eof)) {
-              return event.preventDefault();
-            }
-          };
-          viewport.bind('resize', resizeAndScrollHandler);
-          viewport.bind('scroll', resizeAndScrollHandler);
-          viewport.bind('mousewheel', wheelHandler);
-          $scope.$watch(datasource.revision, reload);
-          $scope.$on('$destroy', function() {
-            var item, j, len;
-            for (j = 0, len = buffer.length; j < len; j++) {
-              item = buffer[j];
-              item.scope.$destroy();
-              item.element.remove();
-            }
-            viewport.unbind('resize', resizeAndScrollHandler);
-            viewport.unbind('scroll', resizeAndScrollHandler);
-            return viewport.unbind('mousewheel', wheelHandler);
-          });
-          adapter = {};
-          adapter.isLoading = false;
-          adapter.reload = reload;
-          applyUpdate = function(wrapper, newItems) {
-            var i, j, keepIt, len, newItem, pos, ref;
-            if (angular.isArray(newItems)) {
-              pos = (buffer.indexOf(wrapper)) + 1;
-              ref = newItems.reverse();
-              for (i = j = 0, len = ref.length; j < len; i = ++j) {
-                newItem = ref[i];
-                if (newItem === wrapper.scope[itemName]) {
-                  keepIt = true;
-                  pos--;
-                } else {
-                  insertItem(pos, newItem);
-                }
-              }
-              if (!keepIt) {
-                return wrapper.op = 'remove';
-              }
-            }
-          };
-          adapter.applyUpdates = function(arg1, arg2) {
-            var bufferClone, i, j, len, ref, wrapper;
-            dismissPendingRequests();
-            if (angular.isFunction(arg1)) {
-              bufferClone = buffer.slice(0);
-              for (i = j = 0, len = bufferClone.length; j < len; i = ++j) {
-                wrapper = bufferClone[i];
-                applyUpdate(wrapper, arg1(wrapper.scope[itemName], wrapper.scope, wrapper.element));
-              }
-            } else {
-              if (arg1 % 1 === 0) {
-                if ((0 <= (ref = arg1 - first) && ref < buffer.length)) {
-                  applyUpdate(buffer[arg1 - first], arg2);
-                }
-              } else {
-                throw new Error('applyUpdates - ' + arg1 + ' is not a valid index');
-              }
-            }
-            return adjustBuffer(ridActual);
-          };
-          adapter.append = function(newItems) {
-            var item, j, len;
-            dismissPendingRequests();
-            for (j = 0, len = newItems.length; j < len; j++) {
-              item = newItems[j];
-              ++next;
-              insertItem('append', item);
-            }
-            return adjustBuffer(ridActual);
-          };
-          adapter.prepend = function(newItems) {
-            var item, j, len, ref;
-            dismissPendingRequests();
-            ref = newItems.reverse();
-            for (j = 0, len = ref.length; j < len; j++) {
-              item = ref[j];
-              --first;
-              insertItem('prepend', item);
-            }
-            return adjustBuffer(ridActual);
-          };
-          if ($attr.adapter) {
-            adapterOnScope = $parse($attr.adapter)($scope);
-            if (!adapterOnScope) {
-              $parse($attr.adapter).assign($scope, {});
-              adapterOnScope = $parse($attr.adapter)($scope);
-            }
-            angular.extend(adapterOnScope, adapter);
-            adapter = adapterOnScope;
-          }
-          unsupportedMethod = function(token) {
-            throw new Error(token + ' event is no longer supported - use applyUpdates instead');
-          };
-          eventListener = datasource.scope ? datasource.scope.$new() : $scope.$new();
-          eventListener.$on('insert.item', function() {
-            return unsupportedMethod('insert');
-          });
-          eventListener.$on('update.items', function() {
-            return unsupportedMethod('update');
-          });
-          return eventListener.$on('delete.items', function() {
-            return unsupportedMethod('delete');
-          });
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function getCtrlOnData(attr, element) {
+  var onSyntax = attr.match(/^(.+)(\s+on\s+)(.+)?/);
+  if (onSyntax && onSyntax.length === 4) {
+    window.console.log('Angular ui-scroll adapter assignment warning. "Controller On" syntax has been deprecated since ui-scroll v1.6.1.');
+    var ctrl = onSyntax[3];
+    var tail = onSyntax[1];
+    var candidate = element;
+    while (candidate.length) {
+      var candidateScope = candidate.scope(); // doesn't work when debugInfoEnabled flag = true
+      var candidateName = (candidate.attr('ng-controller') || '').match(/(\w(?:\w|\d)*)(?:\s+as\s+(\w(?:\w|\d)*))?/);
+      if (candidateName && candidateName[1] === ctrl) {
+        return {
+          target: candidateScope,
+          source: tail
         };
       }
-    };
+      candidate = candidate.parent();
+    }
+    throw new Error('Angular ui-scroll adapter assignment error. Failed to locate target controller "' + ctrl + '" to inject "' + tail + '"');
   }
-]);
+}
+
+var Adapter = function () {
+  function Adapter(viewport, buffer, adjustBuffer, reload, $attr, $parse, element, $scope) {
+    _classCallCheck(this, Adapter);
+
+    this.viewport = viewport;
+    this.buffer = buffer;
+    this.adjustBuffer = adjustBuffer;
+    this.reload = reload;
+
+    this.isLoading = false;
+    this.disabled = false;
+
+    var viewportScope = viewport.getScope();
+    this.startScope = viewportScope.$parent ? viewportScope : $scope;
+
+    this.publicContext = {};
+    this.assignAdapter($attr.adapter, $parse, element);
+    this.generatePublicContext($attr, $parse);
+  }
+
+  _createClass(Adapter, [{
+    key: 'assignAdapter',
+    value: function assignAdapter(adapterAttr, $parse, element) {
+      if (!adapterAttr || !(adapterAttr = adapterAttr.replace(/^\s+|\s+$/gm, ''))) {
+        return;
+      }
+      var ctrlOnData = getCtrlOnData(adapterAttr, element);
+      var adapterOnScope = void 0;
+
+      try {
+        if (ctrlOnData) {
+          // "Controller On", deprecated since v1.6.1
+          $parse(ctrlOnData.source).assign(ctrlOnData.target, {});
+          adapterOnScope = $parse(ctrlOnData.source)(ctrlOnData.target);
+        } else {
+          $parse(adapterAttr).assign(this.startScope, {});
+          adapterOnScope = $parse(adapterAttr)(this.startScope);
+        }
+      } catch (error) {
+        error.message = 'Angular ui-scroll Adapter assignment exception.\n' + ('Can\'t parse "' + adapterAttr + '" expression.\n') + error.message;
+        throw error;
+      }
+
+      angular.extend(adapterOnScope, this.publicContext);
+      this.publicContext = adapterOnScope;
+    }
+  }, {
+    key: 'generatePublicContext',
+    value: function generatePublicContext($attr, $parse) {
+      var _this = this;
+
+      // these methods will be accessible out of ui-scroll via user defined adapter
+      var publicMethods = ['reload', 'applyUpdates', 'append', 'prepend', 'isBOF', 'isEOF', 'isEmpty'];
+      for (var i = publicMethods.length - 1; i >= 0; i--) {
+        this.publicContext[publicMethods[i]] = this[publicMethods[i]].bind(this);
+      }
+
+      // these read-only props will be accessible out of ui-scroll via user defined adapter
+      var publicProps = ['isLoading', 'topVisible', 'topVisibleElement', 'topVisibleScope', 'bottomVisible', 'bottomVisibleElement', 'bottomVisibleScope'];
+
+      var _loop = function _loop(_i) {
+        var property = void 0,
+            attr = $attr[publicProps[_i]];
+        Object.defineProperty(_this, publicProps[_i], {
+          get: function get() {
+            return property;
+          },
+          set: function set(value) {
+            property = value;
+            _this.publicContext[publicProps[_i]] = value;
+            if (attr) {
+              $parse(attr).assign(_this.startScope, value);
+            }
+          }
+        });
+      };
+
+      for (var _i = publicProps.length - 1; _i >= 0; _i--) {
+        _loop(_i);
+      }
+
+      // non-read-only public property
+      Object.defineProperty(this.publicContext, 'disabled', {
+        get: function get() {
+          return _this.disabled;
+        },
+        set: function set(value) {
+          return !(_this.disabled = value) ? _this.adjustBuffer() : null;
+        }
+      });
+    }
+  }, {
+    key: 'loading',
+    value: function loading(value) {
+      this['isLoading'] = value;
+    }
+  }, {
+    key: 'isBOF',
+    value: function isBOF() {
+      return this.buffer.bof;
+    }
+  }, {
+    key: 'isEOF',
+    value: function isEOF() {
+      return this.buffer.eof;
+    }
+  }, {
+    key: 'isEmpty',
+    value: function isEmpty() {
+      return !this.buffer.length;
+    }
+  }, {
+    key: 'applyUpdates',
+    value: function applyUpdates(arg1, arg2) {
+      var _this2 = this;
+
+      if (angular.isFunction(arg1)) {
+        // arg1 is the updater function, arg2 is ignored
+        this.buffer.slice(0).forEach(function (wrapper) {
+          // we need to do it on the buffer clone, because buffer content
+          // may change as we iterate through
+          _this2.applyUpdate(wrapper, arg1(wrapper.item, wrapper.scope, wrapper.element));
+        });
+      } else {
+        // arg1 is item index, arg2 is the newItems array
+        if (arg1 % 1 !== 0) {
+          // checking if it is an integer
+          throw new Error('applyUpdates - ' + arg1 + ' is not a valid index');
+        }
+
+        var index = arg1 - this.buffer.first;
+        if (index >= 0 && index < this.buffer.length) {
+          this.applyUpdate(this.buffer[index], arg2);
+        }
+      }
+
+      this.adjustBuffer();
+    }
+  }, {
+    key: 'append',
+    value: function append(newItems) {
+      this.buffer.append(newItems);
+      this.adjustBuffer();
+    }
+  }, {
+    key: 'prepend',
+    value: function prepend(newItems) {
+      this.buffer.prepend(newItems);
+      this.adjustBuffer();
+    }
+  }, {
+    key: 'calculateProperties',
+    value: function calculateProperties() {
+      var rowTop = null,
+          topHeight = 0;
+      var topDone = false,
+          bottomDone = false;
+      var length = this.buffer.length;
+
+      for (var i = 0; i < length; i++) {
+        var item = this.buffer[i];
+        var itemTop = item.element.offset().top;
+
+        if (rowTop !== itemTop) {
+          // a new row condition
+          var itemHeight = item.element.outerHeight(true);
+          var top = this.viewport.topDataPos() + topHeight + itemHeight;
+
+          if (!topDone && top > this.viewport.topVisiblePos()) {
+            topDone = true;
+            this['topVisible'] = item.item;
+            this['topVisibleElement'] = item.element;
+            this['topVisibleScope'] = item.scope;
+          }
+
+          if (!bottomDone && (top >= this.viewport.bottomVisiblePos() || i === length - 1 && this.isEOF())) {
+            bottomDone = true;
+            this['bottomVisible'] = item.item;
+            this['bottomVisibleElement'] = item.element;
+            this['bottomVisibleScope'] = item.scope;
+          }
+          topHeight += itemHeight;
+        }
+
+        rowTop = itemTop;
+
+        if (topDone && bottomDone) {
+          break;
+        }
+      }
+    }
+  }, {
+    key: 'applyUpdate',
+    value: function applyUpdate(wrapper, newItems) {
+      var _this3 = this;
+
+      if (!angular.isArray(newItems)) {
+        return;
+      }
+
+      var keepIt = void 0;
+      var pos = this.buffer.indexOf(wrapper) + 1;
+
+      newItems.reverse().forEach(function (newItem) {
+        if (newItem === wrapper.item) {
+          keepIt = true;
+          pos--;
+        } else {
+          _this3.buffer.insert(pos, newItem);
+        }
+      });
+
+      if (!keepIt) {
+        wrapper.op = 'remove';
+      }
+    }
+  }]);
+
+  return Adapter;
+}();
+
+exports.default = Adapter;
+
+/***/ }),
+/* 1 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
 
 
-/*
-//# sourceURL=src/ui-scroll.js
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = ScrollBuffer;
+function ScrollBuffer(elementRoutines, bufferSize) {
+  var buffer = Object.create(Array.prototype);
+
+  angular.extend(buffer, {
+    size: bufferSize,
+
+    reset: function reset(startIndex) {
+      buffer.remove(0, buffer.length);
+      buffer.eof = false;
+      buffer.bof = false;
+      buffer.first = startIndex;
+      buffer.next = startIndex;
+      buffer.minIndex = startIndex;
+      buffer.maxIndex = startIndex;
+      buffer.minIndexUser = null;
+      buffer.maxIndexUser = null;
+    },
+    append: function append(items) {
+      items.forEach(function (item) {
+        ++buffer.next;
+        buffer.insert('append', item);
+      });
+      buffer.maxIndex = buffer.eof ? buffer.next - 1 : Math.max(buffer.next - 1, buffer.maxIndex);
+    },
+    prepend: function prepend(items) {
+      items.reverse().forEach(function (item) {
+        --buffer.first;
+        buffer.insert('prepend', item);
+      });
+      buffer.minIndex = buffer.bof ? buffer.minIndex = buffer.first : Math.min(buffer.first, buffer.minIndex);
+    },
+
+
+    /**
+     * inserts wrapped element in the buffer
+     * the first argument is either operation keyword (see below) or a number for operation 'insert'
+     * for insert the number is the index for the buffer element the new one have to be inserted after
+     * operations: 'append', 'prepend', 'insert', 'remove', 'update', 'none'
+     */
+    insert: function insert(operation, item) {
+      var wrapper = {
+        item: item
+      };
+
+      if (operation % 1 === 0) {
+        // it is an insert
+        wrapper.op = 'insert';
+        buffer.splice(operation, 0, wrapper);
+      } else {
+        wrapper.op = operation;
+        switch (operation) {
+          case 'append':
+            buffer.push(wrapper);
+            break;
+          case 'prepend':
+            buffer.unshift(wrapper);
+            break;
+        }
+      }
+    },
+
+
+    // removes elements from buffer
+    remove: function remove(arg1, arg2) {
+      if (angular.isNumber(arg1)) {
+        // removes items from arg1 (including) through arg2 (excluding)
+        for (var i = arg1; i < arg2; i++) {
+          elementRoutines.removeElement(buffer[i]);
+        }
+
+        return buffer.splice(arg1, arg2 - arg1);
+      }
+      // removes single item(wrapper) from the buffer
+      buffer.splice(buffer.indexOf(arg1), 1);
+
+      return elementRoutines.removeElementAnimated(arg1);
+    },
+    effectiveHeight: function effectiveHeight(elements) {
+      if (!elements.length) {
+        return 0;
+      }
+      var top = Number.MAX_VALUE;
+      var bottom = Number.MIN_VALUE;
+      elements.forEach(function (wrapper) {
+        if (wrapper.element[0].offsetParent) {
+          // element style is not display:none
+          top = Math.min(top, wrapper.element.offset().top);
+          bottom = Math.max(bottom, wrapper.element.offset().top + wrapper.element.outerHeight(true));
+        }
+      });
+      return Math.max(0, bottom - top);
+    }
+  });
+
+  return buffer;
+}
+
+/***/ }),
+/* 2 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+var ElementRoutines = function () {
+  function ElementRoutines($injector, $q) {
+    _classCallCheck(this, ElementRoutines);
+
+    this.$animate = $injector.has && $injector.has('$animate') ? $injector.get('$animate') : null;
+    this.isAngularVersionLessThen1_3 = angular.version.major === 1 && angular.version.minor < 3;
+    this.$q = $q;
+  }
+
+  _createClass(ElementRoutines, [{
+    key: 'insertElement',
+    value: function insertElement(newElement, previousElement) {
+      previousElement.after(newElement);
+      return [];
+    }
+  }, {
+    key: 'removeElement',
+    value: function removeElement(wrapper) {
+      wrapper.element.remove();
+      wrapper.scope.$destroy();
+      return [];
+    }
+  }, {
+    key: 'insertElementAnimated',
+    value: function insertElementAnimated(newElement, previousElement) {
+      if (!this.$animate) {
+        return this.insertElement(newElement, previousElement);
+      }
+
+      if (this.isAngularVersionLessThen1_3) {
+        var deferred = this.$q.defer();
+        // no need for parent - previous element is never null
+        this.$animate.enter(newElement, null, previousElement, function () {
+          return deferred.resolve();
+        });
+
+        return [deferred.promise];
+      }
+
+      // no need for parent - previous element is never null
+      return [this.$animate.enter(newElement, null, previousElement)];
+    }
+  }, {
+    key: 'removeElementAnimated',
+    value: function removeElementAnimated(wrapper) {
+      if (!this.$animate) {
+        return this.removeElement(wrapper);
+      }
+
+      if (this.isAngularVersionLessThen1_3) {
+        var deferred = this.$q.defer();
+        this.$animate.leave(wrapper.element, function () {
+          wrapper.scope.$destroy();
+          return deferred.resolve();
+        });
+
+        return [deferred.promise];
+      }
+
+      return [this.$animate.leave(wrapper.element).then(function () {
+        return wrapper.scope.$destroy();
+      })];
+    }
+  }]);
+
+  return ElementRoutines;
+}();
+
+exports.default = ElementRoutines;
+
+/***/ }),
+/* 3 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _slicedToArray = function () { function sliceIterator(arr, i) { var _arr = []; var _n = true; var _d = false; var _e = undefined; try { for (var _i = arr[Symbol.iterator](), _s; !(_n = (_s = _i.next()).done); _n = true) { _arr.push(_s.value); if (i && _arr.length === i) break; } } catch (err) { _d = true; _e = err; } finally { try { if (!_n && _i["return"]) _i["return"](); } finally { if (_d) throw _e; } } return _arr; } return function (arr, i) { if (Array.isArray(arr)) { return arr; } else if (Symbol.iterator in Object(arr)) { return sliceIterator(arr, i); } else { throw new TypeError("Invalid attempt to destructure non-iterable instance"); } }; }();
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+/*!
+ globals: angular, window
+ List of used element methods available in JQuery but not in JQuery Lite
+ element.before(elem)
+ element.height()
+ element.outerHeight(true)
+ element.height(value) = only for Top/Bottom padding elements
+ element.scrollTop()
+ element.scrollTop(value)
  */
-}());
+
+var JQLiteExtras = function () {
+  function JQLiteExtras() {
+    _classCallCheck(this, JQLiteExtras);
+  }
+
+  _createClass(JQLiteExtras, [{
+    key: 'registerFor',
+    value: function registerFor(element) {
+      var convertToPx = void 0,
+          css = void 0,
+          getStyle = void 0,
+          isWindow = void 0;
+      // angular implementation blows up if elem is the window
+      css = angular.element.prototype.css;
+
+      element.prototype.css = function (name, value) {
+        var self = this;
+        var elem = self[0];
+        if (!(!elem || elem.nodeType === 3 || elem.nodeType === 8 || !elem.style)) {
+          return css.call(self, name, value);
+        }
+      };
+
+      // as defined in angularjs v1.0.5
+      isWindow = function isWindow(obj) {
+        return obj && obj.document && obj.location && obj.alert && obj.setInterval;
+      };
+
+      function scrollTo(self, direction, value) {
+        var elem = self[0];
+
+        var _top$left$direction = _slicedToArray({
+          top: ['scrollTop', 'pageYOffset', 'scrollLeft'],
+          left: ['scrollLeft', 'pageXOffset', 'scrollTop']
+        }[direction], 3),
+            method = _top$left$direction[0],
+            prop = _top$left$direction[1],
+            preserve = _top$left$direction[2];
+
+        if (isWindow(elem)) {
+          if (angular.isDefined(value)) {
+            return elem.scrollTo(self[preserve].call(self), value);
+          }
+          return prop in elem ? elem[prop] : elem.document.documentElement[method];
+        } else {
+          if (angular.isDefined(value)) {
+            elem[method] = value;
+          }
+          return elem[method];
+        }
+      }
+
+      if (window.getComputedStyle) {
+        getStyle = function getStyle(elem) {
+          return window.getComputedStyle(elem, null);
+        };
+        convertToPx = function convertToPx(elem, value) {
+          return parseFloat(value);
+        };
+      } else {
+        getStyle = function getStyle(elem) {
+          return elem.currentStyle;
+        };
+        convertToPx = function convertToPx(elem, value) {
+          var left = void 0,
+              result = void 0,
+              rs = void 0,
+              rsLeft = void 0,
+              style = void 0;
+          var core_pnum = /[+-]?(?:\d*\.|)\d+(?:[eE][+-]?\d+|)/.source;
+          var rnumnonpx = new RegExp('^(' + core_pnum + ')(?!px)[a-z%]+$', 'i');
+
+          if (!rnumnonpx.test(value)) {
+            return parseFloat(value);
+          }
+
+          // ported from JQuery
+          style = elem.style;
+          left = style.left;
+          rs = elem.runtimeStyle;
+          rsLeft = rs && rs.left;
+          if (rs) {
+            rs.left = style.left;
+          }
+          // put in the new values to get a computed style out
+          style.left = value;
+          result = style.pixelLeft;
+          style.left = left;
+          if (rsLeft) {
+            rs.left = rsLeft;
+          }
+          return result;
+        };
+      }
+
+      function getMeasurements(elem, measure) {
+        var base = void 0,
+            borderA = void 0,
+            borderB = void 0,
+            computedMarginA = void 0,
+            computedMarginB = void 0,
+            computedStyle = void 0,
+            dirA = void 0,
+            dirB = void 0,
+            marginA = void 0,
+            marginB = void 0,
+            paddingA = void 0,
+            paddingB = void 0;
+
+        if (isWindow(elem)) {
+          base = document.documentElement[{ height: 'clientHeight', width: 'clientWidth' }[measure]];
+
+          return {
+            base: base,
+            padding: 0,
+            border: 0,
+            margin: 0
+          };
+        }
+
+        // Start with offset property
+
+        var _width$height$measure = _slicedToArray({
+          width: [elem.offsetWidth, 'Left', 'Right'],
+          height: [elem.offsetHeight, 'Top', 'Bottom']
+        }[measure], 3);
+
+        base = _width$height$measure[0];
+        dirA = _width$height$measure[1];
+        dirB = _width$height$measure[2];
+
+
+        computedStyle = getStyle(elem);
+        paddingA = convertToPx(elem, computedStyle['padding' + dirA]) || 0;
+        paddingB = convertToPx(elem, computedStyle['padding' + dirB]) || 0;
+        borderA = convertToPx(elem, computedStyle['border' + dirA + 'Width']) || 0;
+        borderB = convertToPx(elem, computedStyle['border' + dirB + 'Width']) || 0;
+        computedMarginA = computedStyle['margin' + dirA];
+        computedMarginB = computedStyle['margin' + dirB];
+
+        // I do not care for width for now, so this hack is irrelevant
+        // if ( !supportsPercentMargin )
+        // computedMarginA = hackPercentMargin( elem, computedStyle, computedMarginA )
+        // computedMarginB = hackPercentMargin( elem, computedStyle, computedMarginB )
+        marginA = convertToPx(elem, computedMarginA) || 0;
+        marginB = convertToPx(elem, computedMarginB) || 0;
+
+        return {
+          base: base,
+          padding: paddingA + paddingB,
+          border: borderA + borderB,
+          margin: marginA + marginB
+        };
+      }
+
+      function getWidthHeight(elem, direction, measure) {
+        var computedStyle = void 0,
+            result = void 0;
+
+        var measurements = getMeasurements(elem, direction);
+
+        if (measurements.base > 0) {
+          return {
+            base: measurements.base - measurements.padding - measurements.border,
+            outer: measurements.base,
+            outerfull: measurements.base + measurements.margin
+          }[measure];
+        }
+
+        // Fall back to computed then uncomputed css if necessary
+        computedStyle = getStyle(elem);
+        result = computedStyle[direction];
+
+        if (result < 0 || result === null) {
+          result = elem.style[direction] || 0;
+        }
+
+        // Normalize "", auto, and prepare for extra
+        result = parseFloat(result) || 0;
+
+        return {
+          base: result - measurements.padding - measurements.border,
+          outer: result,
+          outerfull: result + measurements.padding + measurements.border + measurements.margin
+        }[measure];
+      }
+
+      // define missing methods
+      return angular.forEach({
+        before: function before(newElem) {
+          var children, elem, i, j, parent, ref, self;
+          self = this;
+          elem = self[0];
+          parent = self.parent();
+          children = parent.contents();
+          if (children[0] === elem) {
+            return parent.prepend(newElem);
+          } else {
+            for (i = j = 1, ref = children.length - 1; 1 <= ref ? j <= ref : j >= ref; i = 1 <= ref ? ++j : --j) {
+              if (children[i] === elem) {
+                angular.element(children[i - 1]).after(newElem);
+                return;
+              }
+            }
+            throw new Error('invalid DOM structure ' + elem.outerHTML);
+          }
+        },
+        height: function height(value) {
+          var self;
+          self = this;
+          if (angular.isDefined(value)) {
+            if (angular.isNumber(value)) {
+              value = value + 'px';
+            }
+            return css.call(self, 'height', value);
+          } else {
+            return getWidthHeight(this[0], 'height', 'base');
+          }
+        },
+        outerHeight: function outerHeight(option) {
+          return getWidthHeight(this[0], 'height', option ? 'outerfull' : 'outer');
+        },
+        outerWidth: function outerWidth(option) {
+          return getWidthHeight(this[0], 'width', option ? 'outerfull' : 'outer');
+        },
+
+
+        /*
+         The offset setter method is not implemented
+         */
+        offset: function offset(value) {
+          var docElem = void 0,
+              win = void 0;
+          var self = this;
+          var box = {
+            top: 0,
+            left: 0
+          };
+          var elem = self[0];
+          var doc = elem && elem.ownerDocument;
+
+          if (arguments.length) {
+            if (value === undefined) {
+              return self;
+            }
+            // TODO: implement setter
+            throw new Error('offset setter method is not implemented');
+          }
+
+          if (!doc) {
+            return;
+          }
+
+          docElem = doc.documentElement;
+
+          // TODO: Make sure it's not a disconnected DOM node
+
+          if (elem.getBoundingClientRect != null) {
+            box = elem.getBoundingClientRect();
+          }
+
+          win = doc.defaultView || doc.parentWindow;
+
+          return {
+            top: box.top + (win.pageYOffset || docElem.scrollTop) - (docElem.clientTop || 0),
+            left: box.left + (win.pageXOffset || docElem.scrollLeft) - (docElem.clientLeft || 0)
+          };
+        },
+        scrollTop: function scrollTop(value) {
+          return scrollTo(this, 'top', value);
+        },
+        scrollLeft: function scrollLeft(value) {
+          return scrollTo(this, 'left', value);
+        }
+      }, function (value, key) {
+        if (!element.prototype[key]) {
+          return element.prototype[key] = value;
+        }
+      });
+    }
+  }]);
+
+  return JQLiteExtras;
+}();
+
+exports.default = JQLiteExtras;
+
+/***/ }),
+/* 4 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = Viewport;
+
+var _padding = __webpack_require__(5);
+
+var _padding2 = _interopRequireDefault(_padding);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function Viewport(elementRoutines, buffer, element, viewportController, $rootScope, padding) {
+  var topPadding = null;
+  var bottomPadding = null;
+  var viewport = viewportController && viewportController.viewport ? viewportController.viewport : angular.element(window);
+  var container = viewportController && viewportController.container ? viewportController.container : undefined;
+  var scope = viewportController && viewportController.scope ? viewportController.scope : $rootScope;
+
+  viewport.css({
+    'overflow-anchor': 'none',
+    'overflow-y': 'auto',
+    'display': 'block'
+  });
+
+  function bufferPadding() {
+    return viewport.outerHeight() * padding; // some extra space to initiate preload
+  }
+
+  angular.extend(viewport, {
+    getScope: function getScope() {
+      return scope;
+    },
+    createPaddingElements: function createPaddingElements(template) {
+      topPadding = new _padding2.default(template);
+      bottomPadding = new _padding2.default(template);
+      element.before(topPadding);
+      element.after(bottomPadding);
+    },
+    applyContainerStyle: function applyContainerStyle() {
+      if (container && container !== viewport) {
+        viewport.css('height', window.getComputedStyle(container[0]).height);
+      }
+    },
+    bottomDataPos: function bottomDataPos() {
+      var scrollHeight = viewport[0].scrollHeight;
+      scrollHeight = scrollHeight != null ? scrollHeight : viewport[0].document.documentElement.scrollHeight;
+      return scrollHeight - bottomPadding.height();
+    },
+    topDataPos: function topDataPos() {
+      return topPadding.height();
+    },
+    bottomVisiblePos: function bottomVisiblePos() {
+      return viewport.scrollTop() + viewport.outerHeight();
+    },
+    topVisiblePos: function topVisiblePos() {
+      return viewport.scrollTop();
+    },
+    insertElement: function insertElement(e, sibling) {
+      return elementRoutines.insertElement(e, sibling || topPadding);
+    },
+    insertElementAnimated: function insertElementAnimated(e, sibling) {
+      return elementRoutines.insertElementAnimated(e, sibling || topPadding);
+    },
+    shouldLoadBottom: function shouldLoadBottom() {
+      return !buffer.eof && viewport.bottomDataPos() < viewport.bottomVisiblePos() + bufferPadding();
+    },
+    clipBottom: function clipBottom() {
+      // clip the invisible items off the bottom
+      var overage = 0;
+      var overageHeight = 0;
+      var itemHeight = 0;
+      var emptySpaceHeight = viewport.bottomDataPos() - viewport.bottomVisiblePos() - bufferPadding();
+
+      for (var i = buffer.length - 1; i >= 0; i--) {
+        itemHeight = buffer[i].element.outerHeight(true);
+        if (overageHeight + itemHeight > emptySpaceHeight) {
+          break;
+        }
+        bottomPadding.cache.add(buffer[i]);
+        overageHeight += itemHeight;
+        overage++;
+      }
+
+      if (overage > 0) {
+        buffer.eof = false;
+        buffer.remove(buffer.length - overage, buffer.length);
+        buffer.next -= overage;
+        viewport.adjustPadding();
+      }
+    },
+    shouldLoadTop: function shouldLoadTop() {
+      return !buffer.bof && viewport.topDataPos() > viewport.topVisiblePos() - bufferPadding();
+    },
+    clipTop: function clipTop() {
+      // clip the invisible items off the top
+      var overage = 0;
+      var overageHeight = 0;
+      var itemHeight = 0;
+      var emptySpaceHeight = viewport.topVisiblePos() - viewport.topDataPos() - bufferPadding();
+
+      for (var i = 0; i < buffer.length; i++) {
+        itemHeight = buffer[i].element.outerHeight(true);
+        if (overageHeight + itemHeight > emptySpaceHeight) {
+          break;
+        }
+        topPadding.cache.add(buffer[i]);
+        overageHeight += itemHeight;
+        overage++;
+      }
+
+      if (overage > 0) {
+        // we need to adjust top padding element before items are removed from top
+        // to avoid strange behaviour of scroll bar during remove top items when we are at the very bottom
+        topPadding.height(topPadding.height() + overageHeight);
+        buffer.bof = false;
+        buffer.remove(0, overage);
+        buffer.first += overage;
+      }
+    },
+    adjustPadding: function adjustPadding() {
+      if (!buffer.length) {
+        return;
+      }
+
+      // precise heights calculation, items that were in buffer once
+      var topPaddingHeight = topPadding.cache.reduce(function (summ, item) {
+        return summ + (item.index < buffer.first ? item.height : 0);
+      }, 0);
+      var bottomPaddingHeight = bottomPadding.cache.reduce(function (summ, item) {
+        return summ + (item.index >= buffer.next ? item.height : 0);
+      }, 0);
+
+      // average item height based on buffer data
+      var visibleItemsHeight = buffer.reduce(function (summ, item) {
+        return summ + item.element.outerHeight(true);
+      }, 0);
+      var averageItemHeight = (visibleItemsHeight + topPaddingHeight + bottomPaddingHeight) / (buffer.maxIndex - buffer.minIndex + 1);
+
+      // average heights calculation, items that have never been reached
+      var adjustTopPadding = buffer.minIndexUser !== null && buffer.minIndex > buffer.minIndexUser;
+      var adjustBottomPadding = buffer.maxIndexUser !== null && buffer.maxIndex < buffer.maxIndexUser;
+      var topPaddingHeightAdd = adjustTopPadding ? (buffer.minIndex - buffer.minIndexUser) * averageItemHeight : 0;
+      var bottomPaddingHeightAdd = adjustBottomPadding ? (buffer.maxIndexUser - buffer.maxIndex) * averageItemHeight : 0;
+
+      // paddings combine adjustment
+      topPadding.height(topPaddingHeight + topPaddingHeightAdd);
+      bottomPadding.height(bottomPaddingHeight + bottomPaddingHeightAdd);
+    },
+    adjustScrollTopAfterMinIndexSet: function adjustScrollTopAfterMinIndexSet(topPaddingHeightOld) {
+      // additional scrollTop adjustment in case of datasource.minIndex external set
+      if (buffer.minIndexUser !== null && buffer.minIndex > buffer.minIndexUser) {
+        var diff = topPadding.height() - topPaddingHeightOld;
+        viewport.scrollTop(viewport.scrollTop() + diff);
+      }
+    },
+    adjustScrollTopAfterPrepend: function adjustScrollTopAfterPrepend(updates) {
+      if (!updates.prepended.length) return;
+      var height = buffer.effectiveHeight(updates.prepended);
+      var paddingHeight = topPadding.height() - height;
+      if (paddingHeight >= 0) {
+        topPadding.height(paddingHeight);
+      } else {
+        topPadding.height(0);
+        viewport.scrollTop(viewport.scrollTop() - paddingHeight);
+      }
+    },
+    resetTopPadding: function resetTopPadding() {
+      topPadding.height(0);
+      topPadding.cache.clear();
+    },
+    resetBottomPadding: function resetBottomPadding() {
+      bottomPadding.height(0);
+      bottomPadding.cache.clear();
+    },
+    removeItem: function removeItem(item) {
+      topPadding.cache.remove(item);
+      bottomPadding.cache.remove(item);
+      return buffer.remove(item);
+    }
+  });
+
+  return viewport;
+}
+
+/***/ }),
+/* 5 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.default = Padding;
+function Cache() {
+  var cache = Object.create(Array.prototype);
+
+  angular.extend(cache, {
+    add: function add(item) {
+      for (var i = cache.length - 1; i >= 0; i--) {
+        if (cache[i].index === item.scope.$index) {
+          cache[i].height = item.element.outerHeight();
+          return;
+        }
+      }
+      cache.push({
+        index: item.scope.$index,
+        height: item.element.outerHeight()
+      });
+      cache.sort(function (a, b) {
+        return a.index < b.index ? -1 : a.index > b.index ? 1 : 0;
+      });
+    },
+    remove: function remove(item) {
+      for (var i = cache.length - 1; i >= 0; i--) {
+        if (cache[i].index === item.scope.$index) {
+          cache.splice(i, 1);
+          break;
+        }
+      }
+      for (var _i = cache.length - 1; _i >= 0; _i--) {
+        if (cache[_i].index > item.scope.$index) {
+          cache[_i].index--;
+        }
+      }
+    },
+    clear: function clear() {
+      cache.length = 0;
+    }
+  });
+
+  return cache;
+}
+
+function Padding(template) {
+  var result = void 0;
+
+  switch (template.tagName.toLowerCase()) {
+    case 'dl':
+      throw new Error('ui-scroll directive does not support <' + template.tagName + '> as a repeating tag: ' + template.outerHTML);
+    case 'tr':
+      var table = angular.element('<table><tr><td><div></div></td></tr></table>');
+      result = table.find('tr');
+      break;
+    case 'li':
+      result = angular.element('<li></li>');
+      break;
+    default:
+      result = angular.element('<div></div>');
+  }
+
+  result.cache = new Cache();
+
+  return result;
+}
+
+/***/ }),
+/* 6 */,
+/* 7 */
+/***/ (function(module, exports, __webpack_require__) {
+
+"use strict";
+
+
+var _jqLiteExtras = __webpack_require__(3);
+
+var _jqLiteExtras2 = _interopRequireDefault(_jqLiteExtras);
+
+var _elementRoutines = __webpack_require__(2);
+
+var _elementRoutines2 = _interopRequireDefault(_elementRoutines);
+
+var _buffer = __webpack_require__(1);
+
+var _buffer2 = _interopRequireDefault(_buffer);
+
+var _viewport = __webpack_require__(4);
+
+var _viewport2 = _interopRequireDefault(_viewport);
+
+var _adapter = __webpack_require__(0);
+
+var _adapter2 = _interopRequireDefault(_adapter);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+angular.module('ui.scroll', []).service('jqLiteExtras', function () {
+  return new _jqLiteExtras2.default();
+}).run(['jqLiteExtras', function (jqLiteExtras) {
+  return !window.jQuery ? jqLiteExtras.registerFor(angular.element) : null;
+}]).directive('uiScrollViewport', function () {
+  return {
+    restrict: 'A',
+    controller: ['$scope', '$element', function (scope, element) {
+      var _this = this;
+
+      this.container = element;
+      this.viewport = element;
+      this.scope = scope;
+
+      angular.forEach(element.children(), function (child) {
+        if (child.tagName.toLowerCase() === 'tbody') {
+          _this.viewport = angular.element(child);
+        }
+      });
+
+      return this;
+    }]
+  };
+}).directive('uiScroll', ['$log', '$injector', '$rootScope', '$timeout', '$q', '$parse', function (console, $injector, $rootScope, $timeout, $q, $parse) {
+
+  return {
+    require: ['?^uiScrollViewport'],
+    restrict: 'A',
+    transclude: 'element',
+    priority: 1000,
+    terminal: true,
+    link: link
+  };
+
+  function link($scope, element, $attr, controllers, linker) {
+    var match = $attr.uiScroll.match(/^\s*(\w+)\s+in\s+([(\w|\$)\.]+)\s*$/);
+    if (!match) {
+      throw new Error('Expected uiScroll in form of \'_item_ in _datasource_\' but got \'' + $attr.uiScroll + '\'');
+    }
+
+    function parseNumericAttr(value, defaultValue) {
+      var result = $parse(value)($scope);
+      return isNaN(result) ? defaultValue : result;
+    }
+
+    var BUFFER_MIN = 3;
+    var BUFFER_DEFAULT = 10;
+    var PADDING_MIN = 0.3;
+    var PADDING_DEFAULT = 0.5;
+
+    var datasource = null;
+    var itemName = match[1];
+    var datasourceName = match[2];
+    var viewportController = controllers[0];
+    var bufferSize = Math.max(BUFFER_MIN, parseNumericAttr($attr.bufferSize, BUFFER_DEFAULT));
+    var padding = Math.max(PADDING_MIN, parseNumericAttr($attr.padding, PADDING_DEFAULT));
+    var startIndex = parseNumericAttr($attr.startIndex, 1);
+    var ridActual = 0; // current data revision id
+    var pending = [];
+
+    var elementRoutines = new _elementRoutines2.default($injector, $q);
+    var buffer = new _buffer2.default(elementRoutines, bufferSize);
+    var viewport = new _viewport2.default(elementRoutines, buffer, element, viewportController, $rootScope, padding);
+    var adapter = new _adapter2.default(viewport, buffer, adjustBuffer, reload, $attr, $parse, element, $scope);
+
+    if (viewportController) {
+      viewportController.adapter = adapter;
+    }
+
+    var isDatasourceValid = function isDatasourceValid() {
+      return angular.isObject(datasource) && angular.isFunction(datasource.get);
+    };
+    datasource = $parse(datasourceName)($scope); // try to get datasource on scope
+    if (!isDatasourceValid()) {
+      datasource = $injector.get(datasourceName); // try to inject datasource as service
+      if (!isDatasourceValid()) {
+        throw new Error(datasourceName + ' is not a valid datasource');
+      }
+    }
+
+    var indexStore = {};
+
+    function defineProperty(datasource, propName, propUserName) {
+      var descriptor = Object.getOwnPropertyDescriptor(datasource, propName);
+      if (!descriptor || !descriptor.set && !descriptor.get) {
+        Object.defineProperty(datasource, propName, {
+          set: function set(value) {
+            indexStore[propName] = value;
+            $timeout(function () {
+              buffer[propUserName] = value;
+              if (!pending.length) {
+                var topPaddingHeightOld = viewport.topDataPos();
+                viewport.adjustPadding();
+                if (propName === 'minIndex') {
+                  viewport.adjustScrollTopAfterMinIndexSet(topPaddingHeightOld);
+                }
+              }
+            });
+          },
+          get: function get() {
+            return indexStore[propName];
+          }
+        });
+      }
+    }
+
+    defineProperty(datasource, 'minIndex', 'minIndexUser');
+    defineProperty(datasource, 'maxIndex', 'maxIndexUser');
+
+    var fetchNext = datasource.get.length !== 2 ? function (success) {
+      return datasource.get(buffer.next, bufferSize, success);
+    } : function (success) {
+      datasource.get({
+        index: buffer.next,
+        append: buffer.length ? buffer[buffer.length - 1].item : void 0,
+        count: bufferSize
+      }, success);
+    };
+
+    var fetchPrevious = datasource.get.length !== 2 ? function (success) {
+      return datasource.get(buffer.first - bufferSize, bufferSize, success);
+    } : function (success) {
+      datasource.get({
+        index: buffer.first - bufferSize,
+        prepend: buffer.length ? buffer[0].item : void 0,
+        count: bufferSize
+      }, success);
+    };
+
+    /**
+     * Build padding elements
+     *
+     * Calling linker is the only way I found to get access to the tag name of the template
+     * to prevent the directive scope from pollution a new scope is created and destroyed
+     * right after the builder creation is completed
+     */
+    linker(function (clone, scope) {
+      viewport.createPaddingElements(clone[0]);
+      // we do not include the clone in the DOM. It means that the nested directives will not
+      // be able to reach the parent directives, but in this case it is intentional because we
+      // created the clone to access the template tag name
+      scope.$destroy();
+      clone.remove();
+    });
+
+    $scope.$on('$destroy', function () {
+      unbindEvents();
+      viewport.unbind('mousewheel', wheelHandler);
+    });
+
+    viewport.bind('mousewheel', wheelHandler);
+
+    $timeout(function () {
+      viewport.applyContainerStyle();
+      reload();
+    });
+
+    /* Private function definitions */
+
+    function isInvalid(rid) {
+      return rid && rid !== ridActual || $scope.$$destroyed;
+    }
+
+    function bindEvents() {
+      viewport.bind('resize', resizeAndScrollHandler);
+      viewport.bind('scroll', resizeAndScrollHandler);
+    }
+
+    function unbindEvents() {
+      viewport.unbind('resize', resizeAndScrollHandler);
+      viewport.unbind('scroll', resizeAndScrollHandler);
+    }
+
+    function reload() {
+      viewport.resetTopPadding();
+      viewport.resetBottomPadding();
+      if (arguments.length) {
+        startIndex = arguments[0];
+      }
+      buffer.reset(startIndex);
+      adjustBuffer();
+    }
+
+    function isElementVisible(wrapper) {
+      return wrapper.element.height() && wrapper.element[0].offsetParent;
+    }
+
+    function visibilityWatcher(wrapper) {
+      if (isElementVisible(wrapper)) {
+        buffer.forEach(function (item) {
+          if (angular.isFunction(item.unregisterVisibilityWatcher)) {
+            item.unregisterVisibilityWatcher();
+            delete item.unregisterVisibilityWatcher;
+          }
+        });
+        if (!pending.length) {
+          $timeout(function () {
+            return adjustBuffer();
+          });
+        }
+      }
+    }
+
+    function insertWrapperContent(wrapper, insertAfter) {
+      createElement(wrapper, insertAfter, viewport.insertElement);
+      if (!isElementVisible(wrapper)) {
+        wrapper.unregisterVisibilityWatcher = wrapper.scope.$watch(function () {
+          return visibilityWatcher(wrapper);
+        });
+      }
+      wrapper.element.addClass('ng-hide'); // hide inserted elements before data binding
+    }
+
+    function createElement(wrapper, insertAfter, insertElement) {
+      var promises = null;
+      var sibling = insertAfter > 0 ? buffer[insertAfter - 1].element : undefined;
+      linker(function (clone, scope) {
+        promises = insertElement(clone, sibling);
+        wrapper.element = clone;
+        wrapper.scope = scope;
+        scope[itemName] = wrapper.item;
+      });
+      // ui-scroll-grid apply
+      if (adapter.transform) {
+        var tdInitializer = wrapper.scope.uiScrollTdInitializer;
+        if (tdInitializer && tdInitializer.linking) {
+          adapter.transform(wrapper.scope, wrapper.element);
+        } else {
+          wrapper.scope.uiScrollTdInitializer = {
+            onLink: function onLink() {
+              return adapter.transform(wrapper.scope, wrapper.element);
+            },
+            scope: wrapper.scope
+          };
+        }
+      }
+      return promises;
+    }
+
+    function updateDOM() {
+      var promises = [];
+      var toBePrepended = [];
+      var toBeRemoved = [];
+      var inserted = [];
+
+      buffer.forEach(function (wrapper, i) {
+        switch (wrapper.op) {
+          case 'prepend':
+            toBePrepended.unshift(wrapper);
+            break;
+          case 'append':
+            insertWrapperContent(wrapper, i);
+            wrapper.op = 'none';
+            inserted.push(wrapper);
+            break;
+          case 'insert':
+            promises = promises.concat(createElement(wrapper, i, viewport.insertElementAnimated));
+            wrapper.op = 'none';
+            inserted.push(wrapper);
+            break;
+          case 'remove':
+            toBeRemoved.push(wrapper);
+        }
+      });
+
+      toBeRemoved.forEach(function (wrapper) {
+        return promises = promises.concat(viewport.removeItem(wrapper));
+      });
+
+      if (toBePrepended.length) toBePrepended.forEach(function (wrapper) {
+        insertWrapperContent(wrapper);
+        wrapper.op = 'none';
+      });
+
+      buffer.forEach(function (item, i) {
+        return item.scope.$index = buffer.first + i;
+      });
+
+      return {
+        prepended: toBePrepended,
+        removed: toBeRemoved,
+        inserted: inserted,
+        animated: promises
+      };
+    }
+
+    function updatePaddings(rid, updates) {
+      // schedule another adjustBuffer after animation completion
+      if (updates.animated.length) {
+        $q.all(updates.animated).then(function () {
+          viewport.adjustPadding();
+          adjustBuffer(rid);
+        });
+      } else {
+        viewport.adjustPadding();
+      }
+    }
+
+    function enqueueFetch(rid, updates) {
+      if (viewport.shouldLoadBottom()) {
+        if (!updates || buffer.effectiveHeight(updates.inserted) > 0) {
+          // this means that at least one item appended in the last batch has height > 0
+          if (pending.push(true) === 1) {
+            fetch(rid);
+            adapter.loading(true);
+          }
+        }
+      } else if (viewport.shouldLoadTop()) {
+        if (!updates || buffer.effectiveHeight(updates.prepended) > 0 || pending[0]) {
+          // this means that at least one item appended in the last batch has height > 0
+          // pending[0] = true means that previous fetch was appending. We need to force at least one prepend
+          // BTW there will always be at least 1 element in the pending array because bottom is fetched first
+          if (pending.push(false) === 1) {
+            fetch(rid);
+            adapter.loading(true);
+          }
+        }
+      }
+    }
+
+    function adjustBuffer(rid) {
+      if (!rid) {
+        // dismiss pending requests
+        pending = [];
+        rid = ++ridActual;
+      }
+
+      var updates = updateDOM();
+
+      // We need the item bindings to be processed before we can do adjustment
+      $scope.$applyAsync(function () {
+        return $timeout(function () {
+
+          // show elements after data binging has been done
+          updates.inserted.forEach(function (w) {
+            return w.element.removeClass('ng-hide');
+          });
+          updates.prepended.forEach(function (w) {
+            return w.element.removeClass('ng-hide');
+          });
+
+          if (isInvalid(rid)) {
+            return;
+          }
+
+          updatePaddings(rid, updates);
+          enqueueFetch(rid);
+
+          if (!pending.length) {
+            adapter.calculateProperties();
+          }
+        });
+      });
+    }
+
+    function adjustBufferAfterFetch(rid) {
+      var updates = updateDOM();
+
+      // We need the item bindings to be processed before we can do adjustment
+      $scope.$applyAsync(function () {
+        return $timeout(function () {
+          // show elements after data binging has been done
+          updates.inserted.forEach(function (w) {
+            return w.element.removeClass('ng-hide');
+          });
+          updates.prepended.forEach(function (w) {
+            return w.element.removeClass('ng-hide');
+          });
+
+          viewport.adjustScrollTopAfterPrepend(updates);
+
+          if (isInvalid(rid)) {
+            return;
+          }
+
+          updatePaddings(rid, updates);
+          enqueueFetch(rid, updates);
+          pending.shift();
+
+          if (pending.length) fetch(rid);else {
+            adapter.loading(false);
+            bindEvents();
+            adapter.calculateProperties();
+          }
+        });
+      });
+    }
+
+    function fetch(rid) {
+      if (pending[0]) {
+        // scrolling down
+        if (buffer.length && !viewport.shouldLoadBottom()) {
+          adjustBufferAfterFetch(rid);
+        } else {
+          fetchNext(function (result) {
+            if (isInvalid(rid)) {
+              return;
+            }
+
+            if (result.length < bufferSize) {
+              buffer.eof = true;
+            }
+
+            if (result.length > 0) {
+              viewport.clipTop();
+              buffer.append(result);
+            }
+
+            adjustBufferAfterFetch(rid);
+          });
+        }
+      } else {
+        // scrolling up
+        if (buffer.length && !viewport.shouldLoadTop()) {
+          adjustBufferAfterFetch(rid);
+        } else {
+          fetchPrevious(function (result) {
+            if (isInvalid(rid)) {
+              return;
+            }
+
+            if (result.length < bufferSize) {
+              buffer.bof = true;
+              // log 'bof is reached'
+            }
+
+            if (result.length > 0) {
+              if (buffer.length) {
+                viewport.clipBottom();
+              }
+              buffer.prepend(result);
+            }
+
+            adjustBufferAfterFetch(rid);
+          });
+        }
+      }
+    }
+
+    function resizeAndScrollHandler() {
+      if (!$rootScope.$$phase && !adapter.isLoading && !adapter.disabled) {
+
+        enqueueFetch(ridActual);
+
+        if (pending.length) {
+          unbindEvents();
+        } else {
+          adapter.calculateProperties();
+          $scope.$apply();
+        }
+      }
+    }
+
+    function wheelHandler(event) {
+      if (!adapter.disabled) {
+        var scrollTop = viewport[0].scrollTop;
+        var yMax = viewport[0].scrollHeight - viewport[0].clientHeight;
+
+        if (scrollTop === 0 && !buffer.bof || scrollTop === yMax && !buffer.eof) {
+          event.preventDefault();
+        }
+      }
+    }
+  }
+}]);
+
+/***/ })
+/******/ ]);
+//# sourceMappingURL=ui-scroll.js.map
 /*!
  * angular-ui-uploader
  * https://github.com/angular-ui/ui-uploader
- * Version: 1.1.2 - 2015-10-27T03:09:52.784Z
+ * Version: 1.4.1 - 2017-04-20T06:14:06.100Z
  * License: MIT
  */
 
@@ -50279,13 +51780,18 @@ function uiUploader($log) {
 
     function startUpload(options) {
         self.options = options;
+
+        //headers are not shared by requests
+        var headers = options.headers || {};
+        var xhrOptions = options.options || {};
+
         for (var i = 0; i < self.files.length; i++) {
             if (self.activeUploads == self.options.concurrency) {
                 break;
             }
             if (self.files[i].active)
                 continue;
-            ajaxUpload(self.files[i], self.options.url, self.options.data);
+            ajaxUpload(self.files[i], self.options.url, self.options.data, self.options.paramName, headers, xhrOptions);
         }
     }
 
@@ -50312,25 +51818,30 @@ function uiUploader($log) {
         return (bytes / Math.pow(1024, i)).toFixed(i ? 1 : 0) + ' ' + sizes[isNaN(bytes) ? 0 : i + 1];
     }
 
-    function isFunction(entity) {
-        return typeof(entity) === typeof(Function);
-    }
-
-    function ajaxUpload(file, url, data) {
-        var xhr, formData, prop, key = '' || 'file';
+    function ajaxUpload(file, url, data, key, headers, xhrOptions) {
+        var xhr, formData, prop;
         data = data || {};
+        key = key || 'file';
 
         self.activeUploads += 1;
         file.active = true;
         xhr = new window.XMLHttpRequest();
 
         // To account for sites that may require CORS
-        if (data.withCredentials === true) {
+        if (xhrOptions.withCredentials === true) {
             xhr.withCredentials = true;
         }
 
         formData = new window.FormData();
         xhr.open('POST', url);
+
+        if (headers) {
+            for (var headerKey in headers) {
+                if (headers.hasOwnProperty(headerKey)) {
+                    xhr.setRequestHeader(headerKey, headers[headerKey]);
+                }
+            }
+        }
 
         // Triggered when upload starts:
         xhr.upload.onloadstart = function() {
@@ -50347,31 +51858,44 @@ function uiUploader($log) {
             //console.info(event.loaded);
             file.loaded = event.loaded;
             file.humanSize = getHumanSize(event.loaded);
-            if (isFunction(self.options.onProgress)) {
+            if (angular.isFunction(self.options.onProgress)) {
                 self.options.onProgress(file);
             }
         };
 
-        // Triggered when upload is completed:
-        xhr.onload = function() {
-            self.activeUploads -= 1;
-            self.uploadedFiles += 1;
-            startUpload(self.options);
-            if (isFunction(self.options.onCompleted)) {
-                self.options.onCompleted(file, xhr.responseText, xhr.status);
-            }            
-            if (self.uploadedFiles === self.files.length) {
-                self.uploadedFiles = 0;
-                if (isFunction(self.options.onCompletedAll)) {
-                    self.options.onCompletedAll(self.files);
-                }
+        // Triggered when the upload is successful (the server may not have responded yet).
+        xhr.upload.onload = function() {
+
+            if (angular.isFunction(self.options.onUploadSuccess)) {
+                self.options.onUploadSuccess(file);
             }
         };
 
         // Triggered when upload fails:
-        xhr.onerror = function(e) {
-            if (isFunction(self.options.onError)) {
+        xhr.upload.onerror = function(e) {
+            if (angular.isFunction(self.options.onError)) {
                 self.options.onError(e);
+            }
+        };
+
+        // Triggered when the upload has completed AND the server has responded. Equivalent to
+        // listening for the readystatechange event when xhr.readyState === XMLHttpRequest.DONE.
+        xhr.onload = function () {
+
+            self.activeUploads -= 1;
+            self.uploadedFiles += 1;
+
+            startUpload(self.options);
+
+            if (angular.isFunction(self.options.onCompleted)) {
+                self.options.onCompleted(file, xhr.responseText, xhr.status);
+            }
+
+            if (self.activeUploads === 0) {
+                self.uploadedFiles = 0;
+                if (angular.isFunction(self.options.onCompletedAll)) {
+                    self.options.onCompletedAll(self.files);
+                }
             }
         };
 
@@ -65462,7 +66986,7 @@ angular.module('cfp.loadingBar', [])
 })();       //
 
 /*!
- * jQuery Browser Plugin 0.0.8
+ * jQuery Browser Plugin 0.1.0
  * https://github.com/gabceb/jquery-browser-plugin
  *
  * Original jquery-browser code Copyright 2005, 2015 jQuery Foundation, Inc. and other contributors
@@ -65503,6 +67027,7 @@ angular.module('cfp.loadingBar', [])
     var match = /(edge)\/([\w.]+)/.exec( ua ) ||
         /(opr)[\/]([\w.]+)/.exec( ua ) ||
         /(chrome)[ \/]([\w.]+)/.exec( ua ) ||
+        /(iemobile)[\/]([\w.]+)/.exec( ua ) ||
         /(version)(applewebkit)[ \/]([\w.]+).*(safari)[ \/]([\w.]+)/.exec( ua ) ||
         /(webkit)[ \/]([\w.]+).*(version)[ \/]([\w.]+).*(safari)[ \/]([\w.]+)/.exec( ua ) ||
         /(webkit)[ \/]([\w.]+)/.exec( ua ) ||
@@ -65514,11 +67039,11 @@ angular.module('cfp.loadingBar', [])
 
     var platform_match = /(ipad)/.exec( ua ) ||
         /(ipod)/.exec( ua ) ||
+        /(windows phone)/.exec( ua ) ||
         /(iphone)/.exec( ua ) ||
         /(kindle)/.exec( ua ) ||
         /(silk)/.exec( ua ) ||
         /(android)/.exec( ua ) ||
-        /(windows phone)/.exec( ua ) ||
         /(win)/.exec( ua ) ||
         /(mac)/.exec( ua ) ||
         /(linux)/.exec( ua ) ||
@@ -65563,12 +67088,20 @@ angular.module('cfp.loadingBar', [])
     }
 
     // IE11 has a new token so we will assign it msie to avoid breaking changes
-    // IE12 disguises itself as Chrome, but adds a new Edge token.
-    if ( browser.rv || browser.edge ) {
+    if ( browser.rv || browser.iemobile) {
       var ie = "msie";
 
       matched.browser = ie;
       browser[ie] = true;
+    }
+
+    // Edge is officially known as Microsoft Edge, so rewrite the key to match
+    if ( browser.edge ) {
+      delete browser.edge;
+      var msedge = "msedge";
+
+      matched.browser = msedge;
+      browser[msedge] = true;
     }
 
     // Blackberry browsers are marked as Safari on BlackBerry

@@ -6374,3 +6374,32 @@ h3 > .breadcrumb.pull-right,
     overflow: hidden !important;
   }
 }
+
+canva-editor .page {
+  display: block;
+  text-align: center;
+  position: fixed;
+  width: 75%;
+  height: 100%;
+  overflow: hidden;
+  background-color: #ddd;
+  right: 25%;
+}
+
+canva-editor .page canvas {
+  position: absolute;
+  margin: 0px auto;
+  background-color: #fff;
+  top: 50%;
+  right: 50%;
+  transform: translate(50%, -50%);
+}
+
+canva-editor .left-page-tools {
+  position: fixed;
+  width: 25%;
+  height: 100%;
+  top: 0px;
+  right: 0px;
+  background-color: #333;
+}

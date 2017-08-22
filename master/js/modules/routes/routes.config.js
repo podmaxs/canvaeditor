@@ -39,6 +39,12 @@
                 });
               }
           }) 
+          .state('canva', {
+              url:          '/canva',
+              title:        'Canva editor',
+              resolve: helper.resolveFor('modernizr', 'icons'),
+              template:  '<canva-editor></canva-editor>'
+          })
           .state('app.dash', {
               url:          '/dash',
               title:        'Single View',
@@ -68,6 +74,29 @@
               url:         '/submenu',
               title:       'Submenu',
               templateUrl: helper.basepath('submenu.html')
+          })
+
+
+          // ROUTES OF PAGES oAuth
+
+          .state('privatePage', {
+              url: '/private-page',
+              abstract: true,
+              templateUrl: helper.basepath('page.html'),
+              resolve: helper.resolveFor('modernizr', 'icons'),
+              controller:function(oAuth,$state){
+                oAuth.on('onAuthStateChanged',function(state){
+                  if(!state)
+                    $state.go('page.login');
+                });
+              }
+
+          })
+          .state('privatePage.print', {
+              url: '/print/:id',
+              params:{id:0},
+              title: 'Print Page',
+              templateUrl: 'app/pages/print.html'
           })
 
 
